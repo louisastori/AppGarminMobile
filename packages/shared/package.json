@@ -1,0 +1,12 @@
+{
+  "name": "@nouvelle-app/shared",
+  "private": true,
+  "version": "0.1.0",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "echo \"Add shared build command\"",
+    "typecheck": "echo \"Add shared typecheck command\"",
+    "lint": "echo \"Add shared lint command\""
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "name": "@nouvelle-app/connectors",
+  "private": true,
+  "version": "0.1.0",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "echo \"Add connectors build command\"",
+    "typecheck": "echo \"Add connectors typecheck command\"",
+    "lint": "echo \"Add connectors lint command\""
+  }
+}

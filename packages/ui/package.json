@@ -1,0 +1,12 @@
+{
+  "name": "@nouvelle-app/ui",
+  "private": true,
+  "version": "0.1.0",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "echo \"Add ui build command\"",
+    "typecheck": "echo \"Add ui typecheck command\"",
+    "lint": "echo \"Add ui lint command\""
+  }
+}

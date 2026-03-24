@@ -1,0 +1,18 @@
+export const palette = {
+  background: '#f4ead7',
+  paper: '#fff9ef',
+  paperLifted: '#fff6e6',
+  cloud: '#e7dcc7',
+  border: '#d4c1a0',
+  ink: '#1e1c18',
+  inkMuted: '#5f584d',
+  deep: '#12383c',
+  deepLifted: '#274f52',
+  paperMuted: '#f0e3cd',
+  mint: '#a6d7c4',
+  mintSoft: '#d8efe2',
+  goldSoft: '#f2cf7f',
+  warm: '#d9633b',
+  warmSoft: '#f0b49d',
+  alert: '#b84732',
+} as const;

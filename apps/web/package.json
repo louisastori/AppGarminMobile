@@ -1,0 +1,11 @@
+{
+  "name": "@nouvelle-app/web",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "echo \"Add web dev command\"",
+    "build": "echo \"Add web build command\"",
+    "typecheck": "echo \"Add web typecheck command\"",
+    "lint": "echo \"Add web lint command\""
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "name": "@nouvelle-app/api",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "echo \"Add API dev command\"",
+    "build": "echo \"Add API build command\"",
+    "typecheck": "echo \"Add API typecheck command\"",
+    "lint": "echo \"Add API lint command\""
+  }
+}

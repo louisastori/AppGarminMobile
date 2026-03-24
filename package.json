@@ -1,0 +1,16 @@
+{
+  "name": "nouvelle-app",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@10.0.0",
+  "scripts": {
+    "dev:web": "pnpm --filter @nouvelle-app/web dev",
+    "dev:api": "pnpm --filter @nouvelle-app/api dev",
+    "dev:mobile": "pnpm --filter @nouvelle-app/mobile start",
+    "android:mobile": "pnpm --filter @nouvelle-app/mobile android",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint",
+    "db:migrate": "echo \"Add your migration runner here\""
+  }
+}
