@@ -21,13 +21,13 @@ Configurer un utilisateur Garmin direct
 
 ### Preconditions
 
-- l'acces Garmin requis pour la `fenix 7 Pro` est disponible
+- l'app `Connect IQ` de `nouvelleApp` existe pour la `fenix 7 Pro`
 - l'app `Connect IQ` de `nouvelleApp` existe pour l'`Edge 1030`
 
 ### Flux nominal
 
 1. L'utilisateur ouvre `nouvelleApp`.
-2. L'app associe la `fenix 7 Pro` via le flux Garmin direct prevu.
+2. L'app associe la `fenix 7 Pro` via l'app `Connect IQ` montre prevue.
 3. L'utilisateur active ou installe la composante `Connect IQ` sur l'`Edge 1030`.
 4. `nouvelleApp` detecte les deux appareils Garmin.
 5. L'app affiche la fenix comme wearable principal et l'Edge comme compteur velo.

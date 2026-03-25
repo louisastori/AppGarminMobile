@@ -17,3 +17,5 @@ coverage/
 tmp/
 .DS_Store
 /apps/mobile/.git-mobile-backup/
+/node_modules_pre_hoisted_backup/
+/watch-apps/*/bin/

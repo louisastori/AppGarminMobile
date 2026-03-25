@@ -1,0 +1,10 @@
+{
+  "name": "@nouvelle-app/edge-connect-iq",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "build": "echo \"Add Connect IQ build command for edge-connect-iq\"",
+    "typecheck": "echo \"Add Connect IQ validation for edge-connect-iq\"",
+    "lint": "echo \"Add Connect IQ lint command for edge-connect-iq\""
+  }
+}

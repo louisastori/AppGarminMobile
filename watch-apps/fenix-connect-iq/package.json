@@ -1,0 +1,10 @@
+{
+  "name": "@nouvelle-app/fenix-connect-iq",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "build": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\build.ps1",
+    "typecheck": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\validate-structure.ps1",
+    "lint": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\validate-structure.ps1"
+  }
+}

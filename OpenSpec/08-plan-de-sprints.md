@@ -16,7 +16,7 @@ Transformer le backlog technique en sequence de delivery executable pour une V1.
 
 | Sprint | Objectif | Livrable principal |
 | --- | --- | --- |
-| Sprint 0 | Initialiser le projet et verrouiller Garmin | squelette monorepo, schema DB, cadrage `Health SDK` et `Connect IQ` |
+| Sprint 0 | Initialiser le projet et verrouiller Garmin | squelette monorepo, schema DB, cadrage `Connect IQ` montre + compteur |
 | Sprint 1 | Prouver le Garmin direct | prototype `fenix` direct et prototype `Edge` device app |
 | Sprint 2 | Brancher iFIT et unifier les sessions | ingestion multi-source et timeline canonique |
 | Sprint 3 | Rendre exploitable par un utilisateur | onboarding Garmin/iFIT, equipements, detail session, relance sync |
@@ -41,7 +41,7 @@ Poser les fondations techniques et verrouiller la strategie Garmin directe.
 - conventions de type partagees
 - regles de validation du domaine
 - arborescence technique projet
-- cadrage technique `Garmin Health SDK` / `Connect IQ`
+- cadrage technique `Connect IQ` montre / `Connect IQ` compteur
 
 ### Definition de sortie
 
@@ -66,7 +66,7 @@ Prouver que le chemin Garmin direct est realiste.
 
 ### Livrables
 
-- integration `Garmin Health Standard SDK` minimale
+- app `Connect IQ` fenix minimale
 - app `Connect IQ` Edge minimale
 - bridge mobile `Edge <-> nouvelleApp`
 - pipeline d'ingestion idempotent
@@ -74,12 +74,11 @@ Prouver que le chemin Garmin direct est realiste.
 
 ### Risques
 
-- acces et validation Garmin
 - limitation de scope cote `Connect IQ`
 
 ### Definition de sortie
 
-- une `fenix 7 Pro` peut remonter des donnees dans la base
+- une `fenix 7 Pro` peut echanger des donnees utiles avec `nouvelleApp`
 - un `Edge 1030` peut echanger au minimum des messages applicatifs utiles avec `nouvelleApp`
 
 ## Sprint 2

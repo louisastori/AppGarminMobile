@@ -91,13 +91,13 @@ Livrable:
 
 Priorite: `P0`
 
-Implementer l'integration `Garmin Health Standard SDK` pour la `fenix 7 Pro`.
+Implementer l'app `Connect IQ` montre et son bridge mobile pour la `fenix 7 Pro`.
 
 Livrable:
 
-- appairage wearable
-- recuperation des appareils Garmin compatibles
-- recuperation des sessions et mesures Garmin
+- app montre `fenix`
+- echange de messages entre `fenix` et `nouvelleApp`
+- recuperation des mesures et snapshots Garmin supportes
 - persistence des `SyncJob`
 
 ### T-006

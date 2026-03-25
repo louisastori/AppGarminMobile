@@ -22,8 +22,8 @@ Lister les flux temps reel utiles pour `nouvelleApp` et distinguer:
 
 | Source | Destination | Donnee / controle | Canal principal | Nature | Statut | Priorite |
 | --- | --- | --- | --- | --- | --- | --- |
-| fenix 7 Pro | nouvelleApp | etat wearable, config, donnees sante et activite | Garmin Health Standard SDK | Direct app | officiel, conditionnel a l'acces Garmin | V1 prioritaire |
-| nouvelleApp | fenix 7 Pro | configuration wearable et collecte ciblee | Garmin Health Standard SDK | Direct app | officiel, conditionnel a l'acces Garmin | V1 prioritaire |
+| fenix 7 Pro | nouvelleApp | messages applicatifs, donnees sante, snapshots et flux live | Connect IQ + BLE | Direct app | officiel, scope borne par Connect IQ | V1 prioritaire |
+| nouvelleApp | fenix 7 Pro | configuration applicative, acquittements et synchronisation | Connect IQ + BLE | Direct app | officiel, scope borne par Connect IQ | V1 prioritaire |
 | Edge 1030 | nouvelleApp | messages applicatifs, contexte session, references FIT | Connect IQ + BLE | Direct app | officiel, scope partiel | V1 prioritaire |
 | nouvelleApp | Edge 1030 | commandes ciblees, configuration produit, synchronisation applicative | Connect IQ + BLE | Direct app | officiel, scope partiel | V1 prioritaire |
 | fenix 7 Pro | Edge 1030 | frequence cardiaque diffusee | ANT+ / mode compatible Garmin | Direct | confirme partiel | V1 utile |
@@ -96,7 +96,7 @@ Pourquoi:
 
 ### Regle 1
 
-Faire de `nouvelleApp` le maitre des flux Garmin seulement par une voie officielle Garmin: `Garmin Health SDK` ou `Connect IQ`.
+Faire de `nouvelleApp` le maitre des flux Garmin seulement par une voie officielle Garmin, prioritairement `Connect IQ` quand aucun acces partenaire n'est disponible.
 
 ### Regle 2
 
@@ -155,8 +155,6 @@ Si un flux temps reel n'est pas disponible, `nouvelleApp` doit retomber sur:
 
 ## Sources
 
-- Garmin Health SDK Overview:
-  https://developer.garmin.com/health-sdk/overview/
 - Garmin Connect IQ Overview:
   https://developer.garmin.com/connect-iq/overview/
 - Garmin Connect IQ Compatible Devices:

@@ -12,6 +12,9 @@ importers:
 
   apps/mobile:
     dependencies:
+      '@nouvelle-app/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       expo:
         specifier: ~55.0.8
         version: 55.0.8(@babel/core@7.29.0)(@expo/dom-webview@55.0.3)(react-native@0.83.2(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)(typescript@5.9.3)
@@ -41,9 +44,17 @@ importers:
 
   packages/domain: {}
 
-  packages/shared: {}
+  packages/shared:
+    devDependencies:
+      typescript:
+        specifier: ~5.9.2
+        version: 5.9.3
 
   packages/ui: {}
+
+  watch-apps/edge-connect-iq: {}
+
+  watch-apps/fenix-connect-iq: {}
 
 packages:
 

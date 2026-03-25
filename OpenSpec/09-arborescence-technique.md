@@ -14,7 +14,7 @@ Structure recommandee:
 - TypeScript partage entre front et back
 - SQL explicite pour la base
 - packages metier isoles des applications
-- code Garmin `Edge` separe du code mobile/backend
+- code Garmin montre / compteur separe du code mobile/backend
 
 ## Vue cible
 
@@ -27,15 +27,16 @@ nouvelleApp/
 |       `-- src/
 |-- packages/
 |   |-- connectors/
-|   |   |-- garmin-health/
+|   |   |-- fenix-connect-iq/
 |   |   |-- edge-connect-iq/
 |   |   |-- ifit/
 |   |   `-- fit-import/
 |   |-- domain/
 |   |-- shared/
 |   `-- ui/
-|-- edge-app/
-|   `-- connect-iq/
+|-- watch-apps/
+|   |-- fenix-connect-iq/
+|   `-- edge-connect-iq/
 |-- db/
 |   `-- migrations/
 |-- docs/
@@ -81,20 +82,21 @@ Responsable de:
 
 Responsable de:
 
-- adaptateurs `Garmin Health`
-- bridge mobile `Connect IQ`
+- adaptateurs `Connect IQ` fenix
+- adaptateurs `Connect IQ` Edge
 - connecteur `iFIT`
 - import `FIT/GPX`
 - mapping provider -> domaine
 - gestion des jobs de sync
 
-### `edge-app/connect-iq`
+### `watch-apps`
 
 Responsable de:
 
+- code embarque `Connect IQ` pour la `fenix 7 Pro`
 - code embarque `Connect IQ` pour l'`Edge 1030`
 - echanges de messages avec `nouvelleApp`
-- capture applicative cote `Edge`
+- capture applicative cote appareils Garmin
 
 ### `packages/shared`
 
@@ -132,7 +134,7 @@ Responsable de:
 - `apps/web` peut dependre de `packages/shared` et `packages/ui`
 - `apps/api` peut dependre de `packages/domain`, `packages/connectors`, `packages/shared`
 - `packages/connectors` peut dependre de `packages/domain` et `packages/shared`
-- `edge-app/connect-iq` ne depend pas des apps web/api
+- `watch-apps` ne depend pas des apps web/api
 - `packages/domain` ne depend pas des apps
 
 ## Decision V1

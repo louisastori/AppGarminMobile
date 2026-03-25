@@ -1,7 +1,7 @@
 import type { CarbonController, Device, SyncJob, TimelineSession } from './types';
 
 export const overviewBullets = [
-  'Garmin direct reste le chemin nominal pour la fenix 7 Pro et l Edge 1030.',
+  'Connect IQ devient le chemin nominal entre la fenix 7 Pro, l Edge 1030 et le companion mobile.',
   'Le Carbon TLS est pilote par nouvelleApp avec des controles vitesse et incline dans le mobile.',
   'iFIT devient optionnel et reste limite a un usage legacy d import si necessaire.',
   'Les diagnostics mettent en avant les bridges materiels incomplets avant la timeline.',
@@ -53,11 +53,11 @@ export const initialDevices: Device[] = [
     id: 'fenix-7-pro',
     name: 'fenix 7 Pro',
     role: 'Wearable principal',
-    transport: 'Garmin direct',
+    transport: 'Connect IQ bridge',
     status: 'connected',
-    integration: 'Garmin direct',
+    integration: 'Connect IQ companion',
     lastSeen: '10:42',
-    note: 'Montre principale deja reliee. FC, recovery et journal de synchro disponibles.',
+    note: 'Montre principale deja reliee. Les lots Connect IQ remontent les metriques P0 et les snapshots journaliers.',
     metrics: ['Heart rate', 'Recovery', 'Daily sync'],
     dataPoints: [
       {
@@ -86,7 +86,7 @@ export const initialDevices: Device[] = [
         label: 'Etat de la montre',
         value: 'Batterie, dernier contact et stabilite du lien',
         state: 'received',
-        note: 'Le bridge Garmin direct doit exposer la sante du wearable et sa fraicheur de donnees.',
+        note: 'Le companion Connect IQ doit exposer la sante du wearable, la version app et la fraicheur des batches.',
       },
     ],
   },
@@ -202,7 +202,7 @@ export const initialSessions: TimelineSession[] = [
     time: 'Lun 19:15',
     duration: '28 min',
     primaryDevice: 'fenix 7 Pro',
-    summary: 'Session simple Garmin direct, sans conflit de sources.',
+    summary: 'Session simple Connect IQ, sans conflit de sources.',
     sources: ['fenix 7 Pro', 'nouvelleApp'],
   },
 ];
@@ -210,10 +210,10 @@ export const initialSessions: TimelineSession[] = [
 export const initialSyncJobs: SyncJob[] = [
   {
     id: 'job-1',
-    title: 'Sync fenix 7 Pro',
+    title: 'Sync fenix 7 Pro Connect IQ',
     status: 'success',
     finishedAt: '10:42',
-    detail: 'Le wearable principal a ete synchronise sans erreur.',
+    detail: 'Le wearable principal a publie un batch Connect IQ sans erreur.',
   },
   {
     id: 'job-2',

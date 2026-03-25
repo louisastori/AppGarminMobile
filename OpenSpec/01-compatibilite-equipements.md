@@ -8,7 +8,7 @@ Clarifier ce qui est:
 
 - compatible en direct, via SDK officiel Garmin, ANT+ ou Bluetooth
 - compatible via une application ou un cloud intermediaire
-- conditionne a un programme Garmin ou a une app embarquee `Connect IQ`
+- conditionne a une app embarquee `Connect IQ` ou a un cloud tiers
 - non confirme par une source officielle a ce stade
 
 ## Hypothese de travail
@@ -21,15 +21,15 @@ Clarifier ce qui est:
 
 Consequence immediate:
 
-- `fenix 7 Pro` et `Edge 1030` ne relevent pas du meme chemin d'integration
-- la montre releve d'une logique `Garmin Health Standard SDK`
-- le compteur releve plutot d'une logique `Connect IQ device app + companion mobile`
+- `fenix 7 Pro` et `Edge 1030` relevent de la meme famille d'integration V1
+- la montre releve d'une logique `Connect IQ device app + companion mobile`
+- le compteur releve aussi d'une logique `Connect IQ device app + companion mobile`
 
 ## Resume rapide
 
 | Liaison | Statut | Lecture |
 | --- | --- | --- |
-| fenix 7 Pro <-> nouvelleApp | Oui, conditionnel | Faisable via `Garmin Health Standard SDK`, avec acces enterprise Garmin |
+| fenix 7 Pro <-> nouvelleApp | Oui, conditionnel et partiel | Faisable via une app `Connect IQ` sur la montre et un companion dans `nouvelleApp` |
 | Edge 1030 <-> nouvelleApp | Oui, conditionnel et partiel | Faisable via une app `Connect IQ` sur l'Edge et un companion dans `nouvelleApp` |
 | fenix 7 Pro <-> Edge 1030 | Oui, partiel | La montre peut diffuser la frequence cardiaque vers un Edge |
 | Edge 1030 <-> Elite Zumo | Oui | Compatibilite directe home trainer via ANT+ FE-C |
@@ -49,13 +49,13 @@ Compatibilite confirmee:
 - peut etre couplee a des capteurs sans fil en ANT+ ou Bluetooth
 - peut utiliser un home trainer compatible en activite velo interieur
 - peut diffuser la frequence cardiaque vers un appareil Garmin compatible, y compris un Edge
-- la famille `fēnix` est supportee par le `Garmin Health Standard SDK`
+- est compatible `Connect IQ`
 
 Implication produit:
 
 - la `fenix 7 Pro` peut devenir un appareil direct de `nouvelleApp`
-- le bon chemin officiel n'est pas le reverse engineering BLE brut, mais le `Garmin Health Standard SDK`
-- cette voie suppose un acces enterprise Garmin et une validation commerciale
+- le bon chemin officiel n'est pas le reverse engineering BLE brut, mais une app `Connect IQ` sur la montre et un companion mobile
+- cette voie garde un scope borne par les APIs `Connect IQ`, mais ne depend pas d'un acces partenaire Garmin pour commencer
 
 ### 2. Garmin Edge 1030
 
@@ -109,7 +109,7 @@ Implication produit:
 
 ### Compatibilite forte
 
-- `fenix 7 Pro + nouvelleApp`, sous reserve d'acces `Garmin Health SDK`
+- `fenix 7 Pro + nouvelleApp`, via app `Connect IQ`
 - `Edge 1030 + nouvelleApp`, via app `Connect IQ`
 - `fenix 7 Pro + Edge 1030`
 - `Edge 1030 + Elite Zumo`
@@ -129,7 +129,7 @@ Implication produit:
 
 Le premier perimetre de `nouvelleApp` doit separer clairement:
 
-- les integrations Garmin directes sur wearable: `Garmin Health Standard SDK`
+- les integrations Garmin directes sur wearable: `Connect IQ device app + companion mobile`
 - les integrations Garmin directes sur compteur: `Connect IQ device app + companion mobile`
 - les integrations directes materiel/protocole: `ANT+`, `Bluetooth`, `FTMS`, `FE-C`
 - les integrations de consolidation de donnees: `iFIT` et import `FIT/GPX`
@@ -142,8 +142,6 @@ Autrement dit:
 
 ## Sources
 
-- Garmin Health SDK Overview:
-  https://developer.garmin.com/health-sdk/overview/
 - Garmin Connect Developer Program Overview:
   https://developer.garmin.com/gc-developer-program/overview/
 - Garmin Connect IQ Overview:

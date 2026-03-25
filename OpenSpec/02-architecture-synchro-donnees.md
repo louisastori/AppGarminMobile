@@ -18,7 +18,7 @@ En V1, `nouvelleApp` doit devenir l'application mobile primaire pour les equipem
 
 Cela implique:
 
-- `fenix 7 Pro` geree directement par `nouvelleApp` via une integration officielle de type `Garmin Health Standard SDK`
+- `fenix 7 Pro` geree directement par `nouvelleApp` via une app embarquee `Connect IQ` et un companion mobile
 - `Edge 1030` gere via une app embarquee `Connect IQ` et un companion dans `nouvelleApp`
 - `Carbon TLS` laisse a `iFIT` pour le pilotage et le suivi natif
 
@@ -27,7 +27,7 @@ Cela implique:
 ## Vue d'ensemble
 
 ```text
-Garmin fenix 7 Pro ---- Garmin Health SDK ----\
+Garmin fenix 7 Pro ---- Connect IQ app -------\
                                                \
                                                 > nouvelleApp Mobile ----> nouvelleApp Backend
                                                /
@@ -85,7 +85,7 @@ Objectif:
 
 Exemples:
 
-- `fenix 7 Pro -> nouvelleApp` via `Garmin Health Standard SDK`
+- `fenix 7 Pro -> nouvelleApp` via app `Connect IQ`
 - `Edge 1030 -> nouvelleApp` via app `Connect IQ`
 - `Carbon TLS -> iFIT`
 
@@ -149,10 +149,10 @@ Exemples:
 
 Blocs attendus:
 
-- adaptateur `Garmin Health Standard SDK` pour la `fenix 7 Pro`
+- app embarquee `Connect IQ` pour la `fenix 7 Pro`
 - app embarquee `Connect IQ` pour l'`Edge 1030`
 - bridge mobile `Connect IQ <-> nouvelleApp`
-- parseur FIT pour les sessions et exports Edge
+- parseur FIT pour les sessions et exports `fenix` / `Edge`
 
 ### Couche 2. Connecteurs externes non Garmin
 
@@ -234,24 +234,23 @@ Sorties attendues:
 
 ### 1. Acces officiel Garmin
 
-Le chemin direct sur wearable passe par le `Garmin Health Standard SDK`.
+Le chemin direct V1 passe par `Connect IQ`.
 
 Consequence:
 
-- acces sur demande
-- evaluation gratuite
-- usage commercial conditionne a une licence ou a un volume minimal d'appareils
-- la V1 depend d'une validation Garmin, pas seulement d'un effort de dev
+- pas de dependance immediate a un programme partenaire Garmin pour commencer
+- le cadre reste officiel
+- la limite principale n'est plus l'acces business, mais le scope reel des APIs `Connect IQ`
 
 ### 2. Asymetrie fenix / Edge
 
-La `fenix 7 Pro` et l'`Edge 1030` n'ont pas le meme mode d'integration officielle.
+La `fenix 7 Pro` et l'`Edge 1030` suivent la meme famille d'architecture, mais pas le meme package embarque.
 
 Consequence:
 
-- il faut deux piles techniques Garmin
-- `Garmin Health SDK` pour la montre
-- `Connect IQ` pour le compteur
+- il faut deux apps `Connect IQ`
+- une pour la montre
+- une pour le compteur
 - le backlog doit les separer des le debut
 
 ### 3. Contention Bluetooth
@@ -301,8 +300,6 @@ Donc:
 
 ## Sources
 
-- Garmin Health SDK Overview:
-  https://developer.garmin.com/health-sdk/overview/
 - Garmin Connect Developer Program Overview:
   https://developer.garmin.com/gc-developer-program/overview/
 - Garmin Connect IQ Overview:
