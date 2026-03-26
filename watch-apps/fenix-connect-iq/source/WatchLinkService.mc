@@ -71,6 +71,22 @@ class WatchLinkService {
         return mLinkState + " | pending " + mBatchQueue.getPendingCount();
     }
 
+    function getDisplayLines() {
+        var lines = [
+            "LIEN",
+            "Etat " + mLinkState,
+            "Phone " + (mPhoneReachable ? "ok" : "off"),
+            "Queue " + mBatchQueue.getPendingCount(),
+            "Sync " + mLastSyncAt
+        ];
+
+        if (mLastErrorCode != null) {
+            lines.add("Err " + compactErrorCode(mLastErrorCode));
+        }
+
+        return lines;
+    }
+
     function getLastSyncAt() {
         return mLastSyncAt;
     }
@@ -263,6 +279,30 @@ class WatchLinkService {
 
     function padNumber(value) {
         return (value < 10 ? "0" : "") + value;
+    }
+
+    function compactErrorCode(errorCode) {
+        if (errorCode == GarminContract.DIAGNOSTIC_PHONE_UNREACHABLE) {
+            return "phone";
+        }
+
+        if (errorCode == GarminContract.DIAGNOSTIC_BATCH_REJECTED) {
+            return "reject";
+        }
+
+        if (errorCode == GarminContract.DIAGNOSTIC_STORAGE_FULL) {
+            return "storage";
+        }
+
+        if (errorCode == GarminContract.DIAGNOSTIC_SENSOR_UNAVAILABLE) {
+            return "sensor";
+        }
+
+        if (errorCode == GarminContract.DIAGNOSTIC_PERMISSION_MISSING) {
+            return "perm";
+        }
+
+        return errorCode;
     }
 }
 

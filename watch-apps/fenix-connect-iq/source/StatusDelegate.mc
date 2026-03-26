@@ -24,6 +24,14 @@ class StatusDelegate extends WatchUi.BehaviorDelegate {
         return true;
     }
 
+    function onNextPage() {
+        return mView.scrollNext();
+    }
+
+    function onPreviousPage() {
+        return mView.scrollPrevious();
+    }
+
     function onBack() {
         return false;
     }
