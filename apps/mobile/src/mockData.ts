@@ -54,10 +54,10 @@ export const initialDevices: Device[] = [
     name: 'fenix 7 Pro',
     role: 'Wearable principal',
     transport: 'Connect IQ bridge',
-    status: 'connected',
+    status: 'ready',
     integration: 'Connect IQ companion',
-    lastSeen: '10:42',
-    note: 'Montre principale deja reliee. Les lots Connect IQ remontent les metriques P0 et les snapshots journaliers.',
+    lastSeen: 'Jamais',
+    note: 'Montre en attente d une connexion Connect IQ reelle. Les metriques ne passent a actives qu apres un lien confirme.',
     metrics: ['Heart rate', 'Recovery', 'Daily sync'],
     dataPoints: [
       {
@@ -95,10 +95,10 @@ export const initialDevices: Device[] = [
     name: 'Edge 1030',
     role: 'Compteur principal',
     transport: 'Connect IQ bridge',
-    status: 'attention',
+    status: 'ready',
     integration: 'Connect IQ direct',
-    lastSeen: '09:58',
-    note: 'Le compteur est detecte, mais la liaison mobile doit encore etre finalisee.',
+    lastSeen: 'Jamais',
+    note: 'Le compteur reste hors ligne tant qu aucun bridge Edge reel ne confirme la liaison mobile.',
     metrics: ['Bike sessions', 'Trainer bridge', 'Zumo path'],
     dataPoints: [
       {
@@ -210,10 +210,10 @@ export const initialSessions: TimelineSession[] = [
 export const initialSyncJobs: SyncJob[] = [
   {
     id: 'job-1',
-    title: 'Sync fenix 7 Pro Connect IQ',
-    status: 'success',
-    finishedAt: '10:42',
-    detail: 'Le wearable principal a publie un batch Connect IQ sans erreur.',
+    title: 'Verification fenix 7 Pro',
+    status: 'pending',
+    finishedAt: 'En attente',
+    detail: 'Aucune sync reelle n est consideree active avant confirmation du bridge Connect IQ.',
   },
   {
     id: 'job-2',

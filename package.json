@@ -2,6 +2,7 @@
   "name": "nouvelle-app",
   "private": true,
   "version": "0.1.0",
+  "main": "apps/mobile/index.ts",
   "packageManager": "pnpm@10.0.0",
   "scripts": {
     "dev:web": "pnpm --filter @nouvelle-app/web dev",

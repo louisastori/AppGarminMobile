@@ -49,24 +49,6 @@ const tabs: Array<{ key: DashboardTab; label: string }> = [
   { key: 'diagnostics', label: 'Diagnostic' },
 ];
 
-const fenixSnapshot = {
-  heartRateBpm: 142,
-  heartRateAvgBpm: 138,
-  hrvMs: 62,
-  sleepHours: 7,
-  sleepMinutes: 42,
-  recoveryHours: 18,
-  readinessScore: 78,
-  batteryPct: 83,
-};
-
-const edgeSnapshot = {
-  lastRideKm: 42.3,
-  avgPowerW: 238,
-  cadenceRpm: 87,
-  sensorCount: 4,
-};
-
 type GarminMetricSampleMap = Partial<
   Record<GarminConnectIqMetricKey, GarminConnectIqMetricSample>
 >;
@@ -146,12 +128,84 @@ function formatGarminMetric(metrics: GarminMetricSampleMap, metricKey: GarminCon
   return sample.metricValue;
 }
 
-function buildCompanionHighlights(metrics: GarminMetricSampleMap) {
+function buildMetricFragment(
+  metrics: GarminMetricSampleMap,
+  metricKey: GarminConnectIqMetricKey,
+  label: string,
+) {
+  const formatted = formatGarminMetric(metrics, metricKey);
+  return formatted ? `${label} ${formatted}` : null;
+}
+
+function joinFragments(fragments: Array<string | null>) {
+  const availableFragments = fragments.filter((fragment): fragment is string => Boolean(fragment));
+  return availableFragments.length > 0 ? availableFragments.join(' · ') : null;
+}
+
+function hasAnyGarminMetric(metrics: GarminMetricSampleMap) {
+  return Object.values(metrics).some((sample) => sample?.metricValue !== null && sample !== undefined);
+}
+
+function isBridgeReallyConnected(status: GarminConnectIqBridgeStatus) {
+  return (
+    status.health === 'connected' &&
+    status.linkStatus?.health === 'connected' &&
+    status.lastDiagnostic?.code !== 'device_not_connected' &&
+    status.lastDiagnostic?.code !== 'app_not_installed' &&
+    status.deviceHello !== null
+  );
+}
+
+function isBridgeLinkedToDeviceKind(
+  status: GarminConnectIqBridgeStatus,
+  deviceKind: 'fenix' | 'edge',
+) {
+  return status.deviceHello?.deviceKind === deviceKind;
+}
+
+function isBridgeDeviceConnected(
+  status: GarminConnectIqBridgeStatus,
+  deviceKind: 'fenix' | 'edge',
+) {
+  return isBridgeReallyConnected(status) && isBridgeLinkedToDeviceKind(status, deviceKind);
+}
+
+function isConfirmedCompanionField(value: string | null | undefined) {
+  return Boolean(
+    value &&
+      value !== 'watch-pending' &&
+      value !== 'pending-watch-handshake' &&
+      value !== 'attente',
+  );
+}
+
+function buildCompanionHighlights(
+  status: GarminConnectIqBridgeStatus,
+  metrics: GarminMetricSampleMap,
+) {
+  const metricHighlights = [
+    buildMetricFragment(metrics, 'heart_rate_bpm', 'FC'),
+    buildMetricFragment(metrics, 'stress_score', 'Stress'),
+    buildMetricFragment(metrics, 'steps', 'Pas'),
+    buildMetricFragment(metrics, 'time_to_recovery_h', 'Recup'),
+  ].filter((item): item is string => Boolean(item));
+
+  if (isBridgeReallyConnected(status) && metricHighlights.length > 0) {
+    return metricHighlights;
+  }
+
+  if (status.lastDiagnostic?.code === 'app_not_installed') {
+    return ['App montre absente', 'Aucune mesure recue', 'Installer la fenix'];
+  }
+
+  if (status.lastDiagnostic?.code === 'device_not_connected') {
+    return ['Montre hors ligne', 'Aucune mesure recue', 'Relancer Garmin Connect'];
+  }
+
   return [
-    `FC ${formatGarminMetric(metrics, 'heart_rate_bpm') ?? 'attente'}`,
-    `Stress ${formatGarminMetric(metrics, 'stress_score') ?? 'attente'}`,
-    `Pas ${formatGarminMetric(metrics, 'steps') ?? 'attente'}`,
-    `Recovery ${formatGarminMetric(metrics, 'time_to_recovery_h') ?? 'attente'}`,
+    'Aucune mesure recue',
+    `Etat ${formatBridgeHealthLabel(status.health)}`,
+    status.pendingBatchCount > 0 ? `${status.pendingBatchCount} lot(s) en attente` : 'Premier lot en attente',
   ];
 }
 
@@ -217,8 +271,8 @@ function buildDiagnostics(
           : 'Rattacher la fenix 7 Pro',
       detail:
         fenix?.status === 'connected'
-          ? `Derniere sync ${fenix.lastSeen}. Les flux FC et recovery sont disponibles pour les seances Carbon TLS.`
-          : 'La montre principale doit etre reliee pour remonter les mesures cardio dans l app.',
+          ? `Derniere sync ${fenix.lastSeen}. La liaison montre est active, mais seules les mesures effectivement recues doivent etre affichees.`
+          : 'La montre principale doit etre reliee pour remonter des mesures reelles dans l app.',
       action: fenix?.status === 'connected' ? 'Sync stable' : 'Connecter la fenix',
     },
     {
@@ -376,39 +430,37 @@ function resolveDeviceDataPoints(
         case 'heart-rate':
           return {
             ...point,
-            value: fenixConnected
-              ? `${fenixSnapshot.heartRateBpm} bpm live · moyenne ${fenixSnapshot.heartRateAvgBpm} bpm`
-              : point.value,
-            state: fenixConnected ? 'received' : 'pending',
+            value: fenixConnected ? 'Mesures cardio reelles en attente du premier lot' : point.value,
+            state: 'pending',
           };
         case 'recovery':
           return {
             ...point,
             value: fenixConnected
-              ? `Readiness ${fenixSnapshot.readinessScore}/100 · recovery ${fenixSnapshot.recoveryHours} h`
+              ? 'Recuperation reelle en attente de confirmation montre'
               : point.value,
-            state: fenixConnected ? 'received' : 'pending',
+            state: 'pending',
           };
         case 'daily-sync':
           return {
             ...point,
             value: fenixConnected
-              ? `Sommeil ${fenixSnapshot.sleepHours} h ${fenixSnapshot.sleepMinutes} · HRV ${fenixSnapshot.hrvMs} ms`
+              ? 'Sommeil, HRV et historique en attente du premier lot'
               : point.value,
-            state: fenixConnected ? 'received' : 'pending',
+            state: 'pending',
           };
         case 'device-health':
           return {
             ...point,
             value: fenixConnected
-              ? `Batterie ${fenixSnapshot.batteryPct}% · derniere sync ${device.lastSeen}`
+              ? `Liaison active · derniere sync ${device.lastSeen}`
               : point.value,
             state: fenixConnected ? 'received' : 'pending',
           };
         default:
           return {
             ...point,
-            state: fenixConnected ? 'received' : 'pending',
+            state: 'pending',
           };
       }
     }
@@ -509,21 +561,13 @@ function resolveDeviceMetrics(
   }
 
   if (device.id === 'fenix-7-pro') {
-    return [
-      `FC ${fenixSnapshot.heartRateBpm} bpm`,
-      `HRV ${fenixSnapshot.hrvMs} ms`,
-      `Batt ${fenixSnapshot.batteryPct}%`,
-    ];
+    return ['Mesures reelles', 'Sync Connect IQ', 'Lot en attente'];
   }
 
   if (device.id === 'edge-1030') {
     return device.status === 'connected'
-      ? [
-          `${edgeSnapshot.lastRideKm.toFixed(1)} km`,
-          `${edgeSnapshot.avgPowerW} W`,
-          `${edgeSnapshot.cadenceRpm} rpm`,
-        ]
-      : ['1 sortie', `${edgeSnapshot.sensorCount} capteurs`, 'Bridge partiel'];
+      ? ['Resume d activite', 'Capteurs velo', 'Bridge Connect IQ']
+      : ['Activites en attente', 'Capteurs connus', 'Bridge partiel'];
   }
 
   if (device.id === 'carbon-tls') {
@@ -553,6 +597,34 @@ function resolveCompanionDeviceDataPoints(
   const steps = getGarminMetricNumber(companionMetrics, 'steps');
   const recoveryHours = getGarminMetricNumber(companionMetrics, 'time_to_recovery_h');
   const bodyBatteryPercent = getGarminMetricNumber(companionMetrics, 'body_battery_percent');
+  const fenixLinked =
+    device.status === 'connected' && isBridgeDeviceConnected(companionStatus, 'fenix');
+  const cardioValue = joinFragments([
+    heartRate !== null ? `FC ${heartRate.toFixed(0)} bpm` : null,
+    stressScore !== null ? `stress ${stressScore.toFixed(0)}` : null,
+  ]);
+  const recoveryValue = joinFragments([
+    recoveryHours !== null ? `Recup ${recoveryHours.toFixed(0)} h` : null,
+    bodyBatteryPercent !== null ? `Body Battery ${bodyBatteryPercent.toFixed(0)}%` : null,
+  ]);
+  const dailyValue = joinFragments([
+    steps !== null ? `${steps.toFixed(0)} pas` : null,
+    respirationRate !== null ? `Resp ${respirationRate.toFixed(0)} rpm` : null,
+    spo2Percent !== null ? `SpO2 ${spo2Percent.toFixed(0)}%` : null,
+  ]);
+  const appVersion = isConfirmedCompanionField(companionStatus.deviceHello?.appVersion)
+    ? companionStatus.deviceHello?.appVersion
+    : null;
+  const firmwareVersion = isConfirmedCompanionField(companionStatus.deviceHello?.firmwareVersion)
+    ? companionStatus.deviceHello?.firmwareVersion
+    : null;
+  const healthValue = joinFragments([
+    fenixLinked ? 'Liaison Connect IQ active' : null,
+    appVersion ? `app ${appVersion}` : null,
+    firmwareVersion ? `firmware ${firmwareVersion}` : null,
+    companionStatus.lastBatchId ? `lot ${companionStatus.lastBatchId}` : null,
+    companionStatus.pendingBatchCount > 0 ? `buffer ${companionStatus.pendingBatchCount}` : null,
+  ]);
 
   return device.dataPoints.map((point) => {
     if (device.id === 'phone') {
@@ -595,46 +667,53 @@ function resolveCompanionDeviceDataPoints(
     }
 
     if (device.id === 'fenix-7-pro') {
-      const fenixConnected =
-        device.status === 'connected' && companionStatus.health !== 'disconnected';
-
       switch (point.id) {
         case 'heart-rate':
           return {
             ...point,
-            value: fenixConnected
-              ? `FC ${heartRate ?? fenixSnapshot.heartRateBpm} bpm · stress ${stressScore ?? 24}`
-              : point.value,
-            state: fenixConnected ? 'received' : 'pending',
+            value:
+              fenixLinked && cardioValue
+                ? cardioValue
+                : fenixLinked
+                  ? 'Aucune mesure cardio recue pour l instant'
+                  : point.value,
+            state: fenixLinked && cardioValue ? 'received' : 'pending',
           };
         case 'recovery':
           return {
             ...point,
-            value: fenixConnected
-              ? `Readiness ${fenixSnapshot.readinessScore}/100 · recovery ${recoveryHours ?? fenixSnapshot.recoveryHours} h · body battery ${bodyBatteryPercent ?? 78}%`
-              : point.value,
-            state: fenixConnected ? 'received' : 'pending',
+            value:
+              fenixLinked && recoveryValue
+                ? recoveryValue
+                : fenixLinked
+                  ? 'Recuperation et indicateurs de fatigue en attente'
+                  : point.value,
+            state: fenixLinked && recoveryValue ? 'received' : 'pending',
           };
         case 'daily-sync':
           return {
             ...point,
-            value: fenixConnected
-              ? `Pas ${steps ?? 0} · respiration ${respirationRate ?? 15} rpm · SpO2 ${spo2Percent ?? 97}%`
-              : point.value,
-            state: fenixConnected ? 'received' : 'pending',
+            value:
+              fenixLinked && dailyValue
+                ? dailyValue
+                : fenixLinked
+                  ? 'Historique quotidien en attente du premier lot'
+                  : point.value,
+            state: fenixLinked && dailyValue ? 'received' : 'pending',
           };
         case 'device-health':
           return {
             ...point,
-            value: fenixConnected
-              ? `App ${companionStatus.deviceHello?.appVersion ?? 'attente'} · firmware ${companionStatus.deviceHello?.firmwareVersion ?? 'attente'} · buffer ${companionStatus.pendingBatchCount}`
-              : point.value,
-            state: fenixConnected ? 'received' : 'pending',
+            value:
+              (fenixLinked ? healthValue : null) ??
+              companionStatus.lastDiagnostic?.message ??
+              (fenixLinked ? 'Liaison detectee, aucune mesure exploitable recue' : point.value),
+            state: fenixLinked ? 'received' : 'pending',
           };
         default:
           return {
             ...point,
-            state: fenixConnected ? 'received' : 'pending',
+            state: fenixLinked && hasAnyGarminMetric(companionMetrics) ? 'received' : 'pending',
           };
       }
     }
@@ -737,14 +816,25 @@ function resolveCompanionDeviceMetrics(
   }
 
   if (device.id === 'fenix-7-pro') {
+    const fenixLinked =
+      device.status === 'connected' && isBridgeDeviceConnected(companionStatus, 'fenix');
     const heartRate = getGarminMetricNumber(companionMetrics, 'heart_rate_bpm');
     const steps = getGarminMetricNumber(companionMetrics, 'steps');
     const recoveryHours = getGarminMetricNumber(companionMetrics, 'time_to_recovery_h');
+    const metricChips = [
+      heartRate !== null ? `FC ${heartRate.toFixed(0)} bpm` : null,
+      steps !== null ? `${steps.toFixed(0)} pas` : null,
+      recoveryHours !== null ? `Recup ${recoveryHours.toFixed(0)} h` : null,
+    ].filter((item): item is string => Boolean(item));
+
+    if (fenixLinked && metricChips.length > 0) {
+      return metricChips;
+    }
 
     return [
-      `FC ${heartRate ?? fenixSnapshot.heartRateBpm} bpm`,
-      `${steps ?? 0} pas`,
-      `Recovery ${recoveryHours ?? fenixSnapshot.recoveryHours} h`,
+      companionStatus.deviceHello?.deviceModel ?? 'fenix en attente',
+      `CIQ ${formatBridgeHealthLabel(companionStatus.health)}`,
+      fenixLinked && companionStatus.lastBatchId ? 'Lot recu' : 'Aucune mesure',
     ];
   }
 
@@ -841,9 +931,9 @@ export default function App() {
   );
   const [garminMetrics, setGarminMetrics] = useState<GarminMetricSampleMap>({});
   const [notice, setNotice] = useState(
-    'Prototype Android local pour valider la connexion, le pilotage Carbon TLS et les premiers diagnostics.',
+    'Companion Android local actif. Les valeurs Garmin ne s affichent qu apres reception de mesures reelles.',
   );
-  const companionHighlights = buildCompanionHighlights(garminMetrics);
+  const companionHighlights = buildCompanionHighlights(companionStatus, garminMetrics);
 
   useEffect(() => {
     let active = true;
@@ -888,6 +978,47 @@ export default function App() {
     };
   }, [garminBridge]);
 
+  useEffect(() => {
+    const bridgeNow = formatNow();
+    const fenixConnected = isBridgeDeviceConnected(companionStatus, 'fenix');
+    const fenixKnown = isBridgeLinkedToDeviceKind(companionStatus, 'fenix');
+    const edgeConnected = isBridgeDeviceConnected(companionStatus, 'edge');
+    const edgeKnown = isBridgeLinkedToDeviceKind(companionStatus, 'edge');
+
+    setDevices((currentDevices) =>
+      currentDevices.map((device) => {
+        if (device.id === 'fenix-7-pro') {
+          return {
+            ...device,
+            status: fenixConnected ? 'connected' : fenixKnown ? 'attention' : 'ready',
+            lastSeen: fenixConnected ? bridgeNow : fenixKnown ? 'Connexion a confirmer' : 'Jamais',
+            note: fenixConnected
+              ? 'Montre principale reliee a l app. Les mesures affichent uniquement des lots Connect IQ reels.'
+              : companionStatus.lastDiagnostic?.message ??
+                (fenixKnown
+                  ? 'La fenix est connue du companion, mais la liaison n est pas encore confirmee.'
+                  : 'Montre en attente d une detection Connect IQ reelle.'),
+          };
+        }
+
+        if (device.id === 'edge-1030') {
+          return {
+            ...device,
+            status: edgeConnected ? 'connected' : edgeKnown ? 'attention' : 'ready',
+            lastSeen: edgeConnected ? bridgeNow : edgeKnown ? 'Connexion a confirmer' : 'Jamais',
+            note: edgeConnected
+              ? 'Bridge Connect IQ actif. Le chemin Edge -> mobile est confirme.'
+              : edgeKnown
+                ? 'Le Edge repond au companion, mais la liaison mobile n est pas encore confirmee.'
+                : 'Aucune connexion Edge reelle detectee. Le compteur reste hors ligne tant qu il est eteint ou non joint.',
+          };
+        }
+
+        return device;
+      }),
+    );
+  }, [companionStatus]);
+
   const diagnostics = buildDiagnostics(devices, controller, syncJobs);
   const connectedDevices = devices.filter((device) => device.status === 'connected').length;
   const alertCount = diagnostics.filter((item) => item.severity === 'high').length;
@@ -927,39 +1058,36 @@ export default function App() {
   };
 
   const connectFenix = () => {
-    updateDevice('fenix-7-pro', (device) => ({
-      ...device,
-      status: 'connected',
-      lastSeen: formatNow(),
-      note: 'Montre principale reliee a l app. Le companion Connect IQ pousse les batches cardio et snapshots.',
-    }));
     prependSyncJob(
       buildSyncJob(
-        'Sync fenix 7 Pro Connect IQ',
-        'success',
-        'La montre principale est bien reliee au mobile via le companion Connect IQ.',
+        'Verification fenix 7 Pro',
+        'pending',
+        'La fenix ne sera marquee connectee qu apres confirmation reelle du bridge Connect IQ.',
       ),
     );
     requestGarminSync(
-      'La fenix 7 Pro est bien rattachee a nouvelleApp et un lot Connect IQ est demande.',
+      'Verification de la fenix demandee. Le statut Connecte apparaitra uniquement apres une liaison reelle.',
     );
   };
 
   const connectEdge = () => {
     updateDevice('edge-1030', (device) => ({
       ...device,
-      status: 'connected',
-      lastSeen: formatNow(),
-      note: 'Bridge Connect IQ active. Le chemin Edge -> mobile est pret.',
+      status: device.status === 'connected' ? 'connected' : 'ready',
+      lastSeen: device.status === 'connected' ? formatNow() : 'Jamais',
+      note:
+        'Verification Edge demandee. Le compteur ne passe a Connecte qu apres une liaison mobile reelle.',
     }));
     prependSyncJob(
       buildSyncJob(
-        'Bridge Edge 1030',
-        'success',
-        'Le compteur Edge est maintenant joignable depuis le mobile.',
+        'Verification Edge 1030',
+        'pending',
+        'Aucune connexion Edge n est consideree active tant qu un bridge reel ne l a pas confirmee.',
       ),
     );
-    setNotice('Bridge Edge 1030 active. Le canal velo direct est disponible.');
+    setNotice(
+      'Verification Edge 1030 demandee. Le statut Connecte ne sera affiche qu apres une liaison reelle.',
+    );
   };
 
   const activateCarbonControl = () => {
@@ -1137,7 +1265,9 @@ export default function App() {
         <Text style={styles.deviceNote}>
           {companionStatus.lastDiagnostic
             ? companionStatus.lastDiagnostic.message
-            : 'Le companion recoit les batches watch-poc-data-contract et les ACKe automatiquement.'}
+            : isBridgeReallyConnected(companionStatus) && companionStatus.lastBatchId
+              ? 'Le companion recoit des lots Connect IQ reels et les acquitte automatiquement.'
+              : 'Le companion attend encore un premier lot reel provenant de la montre.'}
         </Text>
 
         <View style={styles.inlineActions}>
@@ -1296,7 +1426,7 @@ export default function App() {
               ) : isEdge ? (
                 <>
                   <ActionButton
-                    label={device.status === 'connected' ? 'Bridge actif' : 'Connecter Edge'}
+                    label={device.status === 'connected' ? 'Bridge actif' : 'Verifier Edge'}
                     onPress={connectEdge}
                     variant="primary"
                   />
@@ -1309,7 +1439,11 @@ export default function App() {
                 </>
               ) : isFenix ? (
                 <>
-                  <ActionButton label="Connecter fenix" onPress={connectFenix} variant="primary" />
+                  <ActionButton
+                    label={device.status === 'connected' ? 'Sync fenix' : 'Verifier fenix'}
+                    onPress={connectFenix}
+                    variant="primary"
+                  />
                   <ActionButton
                     label="Sync CIQ"
                     onPress={() =>
@@ -1462,7 +1596,7 @@ export default function App() {
 
             <ActionButton label="Se connecter" onPress={handleLogin} variant="primary" />
             <Text style={styles.authHint}>
-              Mode demo local: aucun appel Garmin, BLE ou iFIT n est encore branche.
+              Les donnees Garmin ne seront affichees qu apres reception d un lot reel depuis la montre.
             </Text>
           </View>
         </ScrollView>
