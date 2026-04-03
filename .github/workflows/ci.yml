@@ -17,6 +17,7 @@ concurrency:
 env:
   CI: true
   EXPO_NO_TELEMETRY: 1
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   npm_config_virtual_store_dir: .pnpm-store-ci
 
 jobs:
@@ -48,7 +49,7 @@ jobs:
         run: corepack pnpm --filter @nouvelle-app/mobile typecheck
 
       - name: Validate fenix Connect IQ skeleton
-        run: .\watch-apps\fenix-connect-iq\scripts\validate-structure.ps1
+        run: pwsh -NoProfile -File .\watch-apps\fenix-connect-iq\scripts\validate-structure.ps1
 
       - name: Validate edge Connect IQ skeleton
-        run: .\watch-apps\edge-connect-iq\scripts\validate-structure.ps1
+        run: pwsh -NoProfile -File .\watch-apps\edge-connect-iq\scripts\validate-structure.ps1
