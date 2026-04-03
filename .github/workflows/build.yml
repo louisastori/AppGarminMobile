@@ -16,7 +16,6 @@ concurrency:
 env:
   CI: true
   EXPO_NO_TELEMETRY: 1
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   npm_config_virtual_store_dir: .pnpm-store-ci
 
 jobs:
@@ -27,13 +26,13 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
-          cache: pnpm
+          package-manager-cache: false
 
       - name: Enable Corepack
         run: corepack enable
