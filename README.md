@@ -37,3 +37,16 @@ La prochaine etape naturelle est:
 1. choisir le framework exact de l'API et du web,
 2. brancher la couche de persistence,
 3. implementer le premier connecteur Garmin direct.
+
+## CI
+
+Les workflows GitHub Actions couvrent aujourd'hui le perimetre executable du repo:
+
+- installation du workspace avec `corepack pnpm install --frozen-lockfile`
+- typecheck de `packages/shared`
+- typecheck et export Expo de `apps/mobile`
+- validation structurelle et build des apps `Connect IQ` pour `fenix` et `Edge`
+
+Les dossiers `apps/api`, `apps/web`, `packages/domain`, `packages/connectors` et `packages/ui` restent sur des scripts placeholder. Ils ne sont donc pas encore bloquants dans la CI tant que leur outillage reel n'est pas defini.
+
+Pour `Connect IQ`, la compilation produit effectivement des `.prg` si le runner dispose du SDK Garmin (`monkeyc`) et d'une cle developpeur `CONNECTIQ_DEV_KEY`. Sinon, le workflow conserve la validation structurelle et saute la compilation de maniere explicite.
