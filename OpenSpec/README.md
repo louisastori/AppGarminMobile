@@ -39,3 +39,4 @@ Documents:
 - [13-change-mobile-connect-iq-companion.md](13-change-mobile-connect-iq-companion.md)
 - [14-change-backend-sync-garmin-watch.md](14-change-backend-sync-garmin-watch.md)
 - [15-change-validation-fit-et-diagnostics.md](15-change-validation-fit-et-diagnostics.md)
+- [16-change-terrain-validation-android-fenix.md](16-change-terrain-validation-android-fenix.md)

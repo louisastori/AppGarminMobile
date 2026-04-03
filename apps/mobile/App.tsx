@@ -308,7 +308,7 @@ function buildSyncJob(title: string, status: SyncState, detail: string): SyncJob
     title,
     status,
     detail,
-    finishedAt: formatNow(),
+    finishedAt: status === 'pending' ? 'En attente' : formatNow(),
   };
 }
 
@@ -1276,8 +1276,20 @@ export default function App() {
   };
 
   const requestGarminSync = (message: string) => {
-    void activeBridge.requestSyncNow();
-    setNotice(message);
+    void (async () => {
+      try {
+        await activeBridge.requestSyncNow();
+        setNotice(message);
+      } catch (error) {
+        const fallbackMessage =
+          activeCompanionStatus.lastDiagnostic?.message ??
+          `Le bridge ${getCompanionKindLabel(activeCompanionKind)} n est pas pret pour une synchro reelle.`;
+        const errorMessage =
+          error instanceof Error && error.message ? error.message : fallbackMessage;
+
+        setNotice(`Sync Connect IQ bloquee. ${errorMessage}`);
+      }
+    })();
   };
 
   const handleLogin = () => {
@@ -1393,7 +1405,6 @@ export default function App() {
   };
 
   const relaunchSync = () => {
-    const hasAttentionDevice = devices.some((device) => device.status === 'attention');
     const now = formatNow();
 
     setDevices((currentDevices) =>
@@ -1404,10 +1415,8 @@ export default function App() {
     prependSyncJob(
       buildSyncJob(
         'Relance manuelle',
-        hasAttentionDevice ? 'partial' : 'success',
-        hasAttentionDevice
-          ? 'Tous les connecteurs actifs ont ete rafraichis, sauf les bridges encore incomplets.'
-          : 'Tous les connecteurs actifs ont ete rafraichis avec succes.',
+        'pending',
+        'Demande de synchro locale et Connect IQ envoyee. Le job reste en attente tant qu aucune liaison reelle n est confirmee.',
       ),
     );
     requestGarminSync('Une nouvelle synchronisation locale et Connect IQ vient d etre lancee.');
