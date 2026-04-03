@@ -10,6 +10,7 @@ class NouvelleFenixApp extends Application.AppBase {
         mBatchQueue = new BatchQueue();
         mCollector = new MetricCollector(mBatchQueue);
         mLinkService = new WatchLinkService(mBatchQueue, mCollector);
+        registerBackgroundBridgeEvents();
         mLinkService.start();
     }
 
@@ -17,6 +18,10 @@ class NouvelleFenixApp extends Application.AppBase {
         var view = new StatusView(mCollector, mLinkService);
         var delegate = new StatusDelegate(mCollector, mLinkService, view);
         return [view, delegate];
+    }
+
+    function getServiceDelegate() {
+        return [new NouvelleFenixBackgroundServiceDelegate()];
     }
 }
 

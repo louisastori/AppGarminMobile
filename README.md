@@ -43,10 +43,9 @@ La prochaine etape naturelle est:
 Les workflows GitHub Actions couvrent aujourd'hui le perimetre executable du repo:
 
 - installation du workspace avec `corepack pnpm install --frozen-lockfile`
-- typecheck de `packages/shared`
-- typecheck et export Expo de `apps/mobile`
-- validation structurelle et build des apps `Connect IQ` pour `fenix` et `Edge`
+- `corepack pnpm typecheck` sur tout le workspace
+- `corepack pnpm test:coverage` avec seuil global `80%`
+- `corepack pnpm build` pour `apps/api`, `apps/web`, `apps/mobile` et les apps `Connect IQ`
+- upload des artefacts `api`, `web`, `mobile` et `Connect IQ` quand disponibles
 
-Les dossiers `apps/api`, `apps/web`, `packages/domain`, `packages/connectors` et `packages/ui` restent sur des scripts placeholder. Ils ne sont donc pas encore bloquants dans la CI tant que leur outillage reel n'est pas defini.
-
-Pour `Connect IQ`, la compilation produit effectivement des `.prg` si le runner dispose du SDK Garmin (`monkeyc`) et d'une cle developpeur `CONNECTIQ_DEV_KEY`. Sinon, le workflow conserve la validation structurelle et saute la compilation de maniere explicite.
+Les packages `domain`, `connectors`, `ui`, l'API Node, le dashboard web et le companion mobile TypeScript disposent maintenant de scripts reels et de tests. Pour `Connect IQ`, la compilation produit effectivement des `.prg` si le runner dispose du SDK Garmin (`monkeyc`) et d'une cle developpeur `CONNECTIQ_DEV_KEY`. Sinon, le workflow conserve la validation structurelle et saute la compilation de maniere explicite.

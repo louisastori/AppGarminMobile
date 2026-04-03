@@ -2,10 +2,17 @@
   "name": "@nouvelle-app/api",
   "private": true,
   "version": "0.1.0",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
   "scripts": {
-    "dev": "echo \"Add API dev command\"",
-    "build": "echo \"Add API build command\"",
-    "typecheck": "echo \"Add API typecheck command\"",
-    "lint": "echo \"Add API lint command\""
+    "dev": "node --import tsx src/server.ts",
+    "build": "node --import tsx src/build.ts",
+    "typecheck": "tsc --project tsconfig.json --noEmit",
+    "lint": "tsc --project tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@nouvelle-app/connectors": "workspace:*",
+    "@nouvelle-app/domain": "workspace:*",
+    "@nouvelle-app/shared": "workspace:*"
   }
 }

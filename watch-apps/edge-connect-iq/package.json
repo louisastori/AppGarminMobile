@@ -3,8 +3,8 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
-    "build": "echo \"Add Connect IQ build command for edge-connect-iq\"",
-    "typecheck": "echo \"Add Connect IQ validation for edge-connect-iq\"",
-    "lint": "echo \"Add Connect IQ lint command for edge-connect-iq\""
+    "build": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\build.ps1",
+    "typecheck": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\validate-structure.ps1",
+    "lint": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\validate-structure.ps1"
   }
 }

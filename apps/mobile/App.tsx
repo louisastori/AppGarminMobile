@@ -2,13 +2,13 @@ import { StatusBar } from 'expo-status-bar';
 import { startTransition, useEffect, useState } from 'react';
 import {
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import {
   initialController,
@@ -18,9 +18,10 @@ import {
   overviewBullets,
 } from './src/mockData';
 import {
+  GARMIN_CONNECT_IQ_EDGE_APP_ID,
   GARMIN_CONNECT_IQ_METRIC_DEFINITIONS,
+  GARMIN_CONNECT_IQ_WATCH_APP_ID,
   createGarminConnectIqBridge,
-  createGarminConnectIqBatchAck,
   createGarminConnectIqBridgeStatus,
 } from './src/modules/garmin-connect-iq';
 import { palette } from './src/theme';
@@ -53,6 +54,14 @@ type GarminMetricSampleMap = Partial<
   Record<GarminConnectIqMetricKey, GarminConnectIqMetricSample>
 >;
 
+type CompanionDeviceKind = 'fenix' | 'edge';
+
+type CompanionDeviceLinkState = {
+  known: boolean;
+  connected: boolean;
+  deviceStatus: HealthState;
+};
+
 function formatBridgeHealthLabel(health: GarminConnectIqBridgeStatus['health']) {
   switch (health) {
     case 'connected':
@@ -80,6 +89,18 @@ function getBridgeTone(health: GarminConnectIqBridgeStatus['health']) {
     default:
       return styles.badgeNeutral;
   }
+}
+
+function formatAutoSyncLabel(status: GarminConnectIqBridgeStatus) {
+  if (status.autoSyncMode === 'activity') {
+    return 'Sync auto 1 min en activite';
+  }
+
+  if (status.autoSyncMode === 'idle') {
+    return 'Sync auto 30 min hors activite';
+  }
+
+  return 'Sync manuel';
 }
 
 function extractGarminSamples(batch: GarminConnectIqBatchEnvelope): GarminMetricSampleMap {
@@ -170,6 +191,51 @@ function isBridgeDeviceConnected(
   return isBridgeReallyConnected(status) && isBridgeLinkedToDeviceKind(status, deviceKind);
 }
 
+function getCompanionDeviceLinkState(
+  status: GarminConnectIqBridgeStatus,
+  deviceKind: CompanionDeviceKind,
+): CompanionDeviceLinkState {
+  const known = isBridgeLinkedToDeviceKind(status, deviceKind);
+  const connected = isBridgeDeviceConnected(status, deviceKind);
+
+  return {
+    known,
+    connected,
+    deviceStatus: connected ? 'connected' : known ? 'attention' : 'ready',
+  };
+}
+
+function resolveCompanionDevicePresentation(
+  status: GarminConnectIqBridgeStatus,
+  deviceKind: CompanionDeviceKind,
+  bridgeNow: string,
+): Pick<Device, 'status' | 'lastSeen' | 'note'> {
+  const linkState = getCompanionDeviceLinkState(status, deviceKind);
+
+  if (deviceKind === 'fenix') {
+    return {
+      status: linkState.deviceStatus,
+      lastSeen: linkState.connected ? bridgeNow : linkState.known ? 'Connexion a confirmer' : 'Jamais',
+      note: linkState.connected
+        ? `Montre principale reliee a l app. ${formatAutoSyncLabel(status)}. Les mesures affichent uniquement des lots Connect IQ reels.`
+        : status.lastDiagnostic?.message ??
+          (linkState.known
+            ? 'La fenix est connue du companion, mais la liaison n est pas encore confirmee.'
+            : 'Montre en attente d une detection Connect IQ reelle.'),
+    };
+  }
+
+  return {
+    status: linkState.deviceStatus,
+    lastSeen: linkState.connected ? bridgeNow : linkState.known ? 'Connexion a confirmer' : 'Jamais',
+    note: linkState.connected
+      ? `Bridge Connect IQ actif. ${formatAutoSyncLabel(status)}. Le chemin Edge -> mobile est confirme.`
+      : linkState.known
+        ? 'Le Edge repond au companion, mais la liaison mobile n est pas encore confirmee.'
+        : 'Aucune connexion Edge reelle detectee. Le compteur reste hors ligne tant qu il est eteint ou non joint.',
+  };
+}
+
 function isConfirmedCompanionField(value: string | null | undefined) {
   return Boolean(
     value &&
@@ -183,11 +249,27 @@ function buildCompanionHighlights(
   status: GarminConnectIqBridgeStatus,
   metrics: GarminMetricSampleMap,
 ) {
+  if (status.deviceHello?.deviceKind === 'edge') {
+    const edgeHighlights = [
+      buildMetricFragment(metrics, 'heart_rate_bpm', 'FC'),
+      buildMetricFragment(metrics, 'activity_elapsed_time_s', 'Duree'),
+      buildMetricFragment(metrics, 'activity_elapsed_distance_m', 'Dist'),
+      buildMetricFragment(metrics, 'activity_current_cadence_rpm', 'Cadence'),
+      buildMetricFragment(metrics, 'power_w', 'Power'),
+    ].filter((item): item is string => Boolean(item));
+
+    if (isBridgeReallyConnected(status) && edgeHighlights.length > 0) {
+      return edgeHighlights;
+    }
+  }
+
   const metricHighlights = [
     buildMetricFragment(metrics, 'heart_rate_bpm', 'FC'),
     buildMetricFragment(metrics, 'stress_score', 'Stress'),
     buildMetricFragment(metrics, 'steps', 'Pas'),
     buildMetricFragment(metrics, 'time_to_recovery_h', 'Recup'),
+    buildMetricFragment(metrics, 'body_battery_percent', 'BodyBat'),
+    buildMetricFragment(metrics, 'temperature_c', 'Temp'),
   ].filter((item): item is string => Boolean(item));
 
   if (isBridgeReallyConnected(status) && metricHighlights.length > 0) {
@@ -207,6 +289,10 @@ function buildCompanionHighlights(
     `Etat ${formatBridgeHealthLabel(status.health)}`,
     status.pendingBatchCount > 0 ? `${status.pendingBatchCount} lot(s) en attente` : 'Premier lot en attente',
   ];
+}
+
+function getCompanionKindLabel(kind: CompanionDeviceKind) {
+  return kind === 'edge' ? 'Edge 1030' : 'fenix 7 Pro';
 }
 
 function formatNow() {
@@ -378,175 +464,6 @@ function getSeverityTone(severity: DiagnosticItem['severity']) {
   }
 }
 
-function resolveDeviceDataPoints(
-  device: Device,
-  controller: CarbonController,
-  syncJobs: SyncJob[],
-): DeviceDataPoint[] {
-  const lastJob = syncJobs[0];
-
-  return device.dataPoints.map((point) => {
-    if (device.id === 'phone') {
-      switch (point.id) {
-        case 'mobile-session':
-          return {
-            ...point,
-            value: `Session active · ${syncJobs.length} jobs visibles`,
-            state: 'received',
-          };
-        case 'ble-bridge':
-          return {
-            ...point,
-            value: 'Scan BLE, handoff Garmin et bridge local actifs',
-            state: 'received',
-          };
-        case 'local-diagnostics':
-          return {
-            ...point,
-            value: lastJob
-              ? `Dernier job ${lastJob.title.toLowerCase()} · ${lastJob.status}`
-              : 'Aucun job de synchro disponible',
-            state: 'received',
-          };
-        case 'carbon-master':
-          return controller.connected
-            ? {
-                ...point,
-                value: controller.workoutActive
-                  ? 'nouvelleApp pilote une seance locale en cours'
-                  : 'nouvelleApp tient la main locale sur le tapis',
-                state: 'received',
-              }
-            : point;
-        default:
-          return point;
-      }
-    }
-
-    if (device.id === 'fenix-7-pro') {
-      const fenixConnected = device.status === 'connected';
-
-      switch (point.id) {
-        case 'heart-rate':
-          return {
-            ...point,
-            value: fenixConnected ? 'Mesures cardio reelles en attente du premier lot' : point.value,
-            state: 'pending',
-          };
-        case 'recovery':
-          return {
-            ...point,
-            value: fenixConnected
-              ? 'Recuperation reelle en attente de confirmation montre'
-              : point.value,
-            state: 'pending',
-          };
-        case 'daily-sync':
-          return {
-            ...point,
-            value: fenixConnected
-              ? 'Sommeil, HRV et historique en attente du premier lot'
-              : point.value,
-            state: 'pending',
-          };
-        case 'device-health':
-          return {
-            ...point,
-            value: fenixConnected
-              ? `Liaison active · derniere sync ${device.lastSeen}`
-              : point.value,
-            state: fenixConnected ? 'received' : 'pending',
-          };
-        default:
-          return {
-            ...point,
-            state: 'pending',
-          };
-      }
-    }
-
-    if (device.id === 'edge-1030') {
-      const edgeConnected = device.status === 'connected';
-
-      switch (point.id) {
-        case 'bike-activity':
-          return {
-            ...point,
-            value: edgeConnected
-              ? 'Resume FIT, derniere sortie et profils velo charges'
-              : point.value,
-            state: edgeConnected ? 'received' : point.state,
-          };
-        case 'trainer-bridge':
-          return {
-            ...point,
-            value: edgeConnected
-              ? 'Puissance, cadence et resistance trainer visibles'
-              : point.value,
-            state: edgeConnected ? 'received' : point.state,
-          };
-        case 'route-path':
-          return {
-            ...point,
-            value: edgeConnected ? 'Parcours et traces rehydrates dans le mobile' : point.value,
-            state: edgeConnected ? 'received' : point.state,
-          };
-        case 'sensor-map':
-          return {
-            ...point,
-            value: edgeConnected ? 'Capteurs velo relies et exposes dans le bridge' : point.value,
-            state: edgeConnected ? 'received' : point.state,
-          };
-        default:
-          return point;
-      }
-    }
-
-    if (device.id === 'carbon-tls') {
-      switch (point.id) {
-        case 'treadmill-speed':
-          return controller.connected
-            ? {
-                ...point,
-                value: `${controller.speedKph.toFixed(1)} km/h recupere et pilotable`,
-                state: 'received',
-              }
-            : point;
-        case 'treadmill-incline':
-          return controller.connected
-            ? {
-                ...point,
-                value: `${controller.inclinePct.toFixed(1)}% recupere et pilotable`,
-                state: 'received',
-              }
-            : point;
-        case 'workout-state':
-          return controller.connected
-            ? {
-                ...point,
-                value: controller.workoutActive
-                  ? `Seance en cours · cible ${controller.targetMinutes} min`
-                  : 'Bridge local actif, pret a demarrer',
-                state: 'received',
-              }
-            : point;
-        case 'safety-state':
-          return controller.connected
-            ? {
-                ...point,
-                value: 'Etat machine visible, arret urgence non remonte',
-                state: 'received',
-              }
-            : point;
-        default:
-          return point;
-      }
-    }
-
-    return point;
-  });
-}
-
 function resolveDeviceMetrics(
   device: Device,
   controller: CarbonController,
@@ -590,6 +507,8 @@ function resolveCompanionDeviceDataPoints(
 ): DeviceDataPoint[] {
   const lastJob = syncJobs[0];
   const companionHealthLabel = formatBridgeHealthLabel(companionStatus.health);
+  const fenixBridgeState = getCompanionDeviceLinkState(companionStatus, 'fenix');
+  const edgeBridgeState = getCompanionDeviceLinkState(companionStatus, 'edge');
   const heartRate = getGarminMetricNumber(companionMetrics, 'heart_rate_bpm');
   const stressScore = getGarminMetricNumber(companionMetrics, 'stress_score');
   const respirationRate = getGarminMetricNumber(companionMetrics, 'respiration_rate_bpm');
@@ -597,8 +516,7 @@ function resolveCompanionDeviceDataPoints(
   const steps = getGarminMetricNumber(companionMetrics, 'steps');
   const recoveryHours = getGarminMetricNumber(companionMetrics, 'time_to_recovery_h');
   const bodyBatteryPercent = getGarminMetricNumber(companionMetrics, 'body_battery_percent');
-  const fenixLinked =
-    device.status === 'connected' && isBridgeDeviceConnected(companionStatus, 'fenix');
+  const fenixLinked = fenixBridgeState.connected;
   const cardioValue = joinFragments([
     heartRate !== null ? `FC ${heartRate.toFixed(0)} bpm` : null,
     stressScore !== null ? `stress ${stressScore.toFixed(0)}` : null,
@@ -719,7 +637,7 @@ function resolveCompanionDeviceDataPoints(
     }
 
     if (device.id === 'edge-1030') {
-      const edgeConnected = device.status === 'connected';
+      const edgeConnected = edgeBridgeState.connected;
 
       switch (point.id) {
         case 'bike-activity':
@@ -816,8 +734,7 @@ function resolveCompanionDeviceMetrics(
   }
 
   if (device.id === 'fenix-7-pro') {
-    const fenixLinked =
-      device.status === 'connected' && isBridgeDeviceConnected(companionStatus, 'fenix');
+    const fenixLinked = getCompanionDeviceLinkState(companionStatus, 'fenix').connected;
     const heartRate = getGarminMetricNumber(companionMetrics, 'heart_rate_bpm');
     const steps = getGarminMetricNumber(companionMetrics, 'steps');
     const recoveryHours = getGarminMetricNumber(companionMetrics, 'time_to_recovery_h');
@@ -835,6 +752,287 @@ function resolveCompanionDeviceMetrics(
       companionStatus.deviceHello?.deviceModel ?? 'fenix en attente',
       `CIQ ${formatBridgeHealthLabel(companionStatus.health)}`,
       fenixLinked && companionStatus.lastBatchId ? 'Lot recu' : 'Aucune mesure',
+    ];
+  }
+
+  return resolveDeviceMetrics(device, controller, syncJobs);
+}
+
+function resolveDualCompanionDeviceDataPoints(
+  device: Device,
+  controller: CarbonController,
+  syncJobs: SyncJob[],
+  activeCompanionStatus: GarminConnectIqBridgeStatus,
+  fenixStatus: GarminConnectIqBridgeStatus,
+  fenixMetrics: GarminMetricSampleMap,
+  edgeStatus: GarminConnectIqBridgeStatus,
+  edgeMetrics: GarminMetricSampleMap,
+): DeviceDataPoint[] {
+  const lastJob = syncJobs[0];
+  const companionHealthLabel = formatBridgeHealthLabel(activeCompanionStatus.health);
+  const fenixBridgeState = getCompanionDeviceLinkState(fenixStatus, 'fenix');
+  const edgeBridgeState = getCompanionDeviceLinkState(edgeStatus, 'edge');
+  const heartRate = getGarminMetricNumber(fenixMetrics, 'heart_rate_bpm');
+  const stressScore = getGarminMetricNumber(fenixMetrics, 'stress_score');
+  const respirationRate = getGarminMetricNumber(fenixMetrics, 'respiration_rate_bpm');
+  const spo2Percent = getGarminMetricNumber(fenixMetrics, 'spo2_percent');
+  const steps = getGarminMetricNumber(fenixMetrics, 'steps');
+  const recoveryHours = getGarminMetricNumber(fenixMetrics, 'time_to_recovery_h');
+  const bodyBatteryPercent = getGarminMetricNumber(fenixMetrics, 'body_battery_percent');
+  const fenixLinked = fenixBridgeState.connected;
+  const edgeLinked = edgeBridgeState.connected;
+  const edgeHeartRate = getGarminMetricNumber(edgeMetrics, 'heart_rate_bpm');
+  const edgeElapsedTime = getGarminMetricNumber(edgeMetrics, 'activity_elapsed_time_s');
+  const edgeDistance = getGarminMetricNumber(edgeMetrics, 'activity_elapsed_distance_m');
+  const edgeSpeed = getGarminMetricNumber(edgeMetrics, 'activity_current_speed_mps');
+  const edgeCadence = getGarminMetricNumber(edgeMetrics, 'activity_current_cadence_rpm');
+  const cardioValue = joinFragments([
+    heartRate !== null ? `FC ${heartRate.toFixed(0)} bpm` : null,
+    stressScore !== null ? `stress ${stressScore.toFixed(0)}` : null,
+  ]);
+  const recoveryValue = joinFragments([
+    recoveryHours !== null ? `Recup ${recoveryHours.toFixed(0)} h` : null,
+    bodyBatteryPercent !== null ? `Body Battery ${bodyBatteryPercent.toFixed(0)}%` : null,
+  ]);
+  const dailyValue = joinFragments([
+    steps !== null ? `${steps.toFixed(0)} pas` : null,
+    respirationRate !== null ? `Resp ${respirationRate.toFixed(0)} rpm` : null,
+    spo2Percent !== null ? `SpO2 ${spo2Percent.toFixed(0)}%` : null,
+  ]);
+  const appVersion = isConfirmedCompanionField(fenixStatus.deviceHello?.appVersion)
+    ? fenixStatus.deviceHello?.appVersion
+    : null;
+  const firmwareVersion = isConfirmedCompanionField(fenixStatus.deviceHello?.firmwareVersion)
+    ? fenixStatus.deviceHello?.firmwareVersion
+    : null;
+  const fenixHealthValue = joinFragments([
+    fenixLinked ? 'Liaison Connect IQ active' : null,
+    appVersion ? `app ${appVersion}` : null,
+    firmwareVersion ? `firmware ${firmwareVersion}` : null,
+    fenixStatus.lastBatchId ? `lot ${fenixStatus.lastBatchId}` : null,
+    fenixStatus.pendingBatchCount > 0 ? `buffer ${fenixStatus.pendingBatchCount}` : null,
+  ]);
+  const edgeActivityValue = joinFragments([
+    edgeHeartRate !== null ? `FC ${edgeHeartRate.toFixed(0)} bpm` : null,
+    edgeElapsedTime !== null ? `${edgeElapsedTime.toFixed(0)} s` : null,
+    edgeDistance !== null ? `${edgeDistance.toFixed(0)} m` : null,
+  ]);
+  const edgeTrainerValue = joinFragments([
+    edgeSpeed !== null ? `${edgeSpeed.toFixed(1)} m/s` : null,
+    edgeCadence !== null ? `${edgeCadence.toFixed(0)} rpm` : null,
+  ]);
+  const edgeHealthValue = joinFragments([
+    edgeLinked ? 'Bridge Connect IQ Edge actif' : null,
+    edgeStatus.deviceHello?.appVersion ? `app ${edgeStatus.deviceHello.appVersion}` : null,
+    edgeStatus.lastBatchId ? `lot ${edgeStatus.lastBatchId}` : null,
+    edgeStatus.pendingBatchCount > 0 ? `buffer ${edgeStatus.pendingBatchCount}` : null,
+  ]);
+
+  if (device.id === 'carbon-tls') {
+    return resolveCompanionDeviceDataPoints(
+      device,
+      controller,
+      syncJobs,
+      activeCompanionStatus,
+      activeCompanionStatus.deviceHello?.deviceKind === 'edge' ? edgeMetrics : fenixMetrics,
+    );
+  }
+
+  return device.dataPoints.map((point) => {
+    if (device.id === 'phone') {
+      switch (point.id) {
+        case 'mobile-session':
+          return {
+            ...point,
+            value: `Session active · ${syncJobs.length} jobs visibles · ${fenixStatus.pendingBatchCount + edgeStatus.pendingBatchCount} lot(s) Connect IQ`,
+            state: 'received',
+          };
+        case 'ble-bridge':
+          return {
+            ...point,
+            value: `${companionHealthLabel} · actif ${getCompanionKindLabel(activeCompanionStatus.deviceHello?.deviceKind ?? 'fenix')} · ${activeCompanionStatus.capabilities?.supportedMetrics.length ?? 0} metriques`,
+            state: 'received',
+          };
+        case 'local-diagnostics':
+          return {
+            ...point,
+            value: activeCompanionStatus.lastDiagnostic
+              ? `${activeCompanionStatus.lastDiagnostic.code} · ${activeCompanionStatus.lastDiagnostic.message}`
+              : lastJob
+                ? `Dernier job ${lastJob.title.toLowerCase()} · ${lastJob.status}`
+                : 'Aucun job de synchro disponible',
+            state: 'received',
+          };
+        case 'carbon-master':
+          return controller.connected
+            ? {
+                ...point,
+                value: controller.workoutActive
+                  ? 'nouvelleApp pilote une seance locale en cours'
+                  : 'nouvelleApp tient la main locale sur le tapis',
+                state: 'received',
+              }
+            : point;
+        default:
+          return point;
+      }
+    }
+
+    if (device.id === 'fenix-7-pro') {
+      switch (point.id) {
+        case 'heart-rate':
+          return {
+            ...point,
+            value:
+              fenixLinked && cardioValue
+                ? cardioValue
+                : fenixLinked
+                  ? 'Aucune mesure cardio recue pour l instant'
+                  : point.value,
+            state: fenixLinked && cardioValue ? 'received' : 'pending',
+          };
+        case 'recovery':
+          return {
+            ...point,
+            value:
+              fenixLinked && recoveryValue
+                ? recoveryValue
+                : fenixLinked
+                  ? 'Recuperation et indicateurs de fatigue en attente'
+                  : point.value,
+            state: fenixLinked && recoveryValue ? 'received' : 'pending',
+          };
+        case 'daily-sync':
+          return {
+            ...point,
+            value:
+              fenixLinked && dailyValue
+                ? dailyValue
+                : fenixLinked
+                  ? 'Historique quotidien en attente du premier lot'
+                  : point.value,
+            state: fenixLinked && dailyValue ? 'received' : 'pending',
+          };
+        case 'device-health':
+          return {
+            ...point,
+            value:
+              (fenixLinked ? fenixHealthValue : null) ??
+              fenixStatus.lastDiagnostic?.message ??
+              (fenixLinked ? 'Liaison detectee, aucune mesure exploitable recue' : point.value),
+            state: fenixLinked ? 'received' : 'pending',
+          };
+        default:
+          return {
+            ...point,
+            state: fenixLinked && hasAnyGarminMetric(fenixMetrics) ? 'received' : 'pending',
+          };
+      }
+    }
+
+    if (device.id === 'edge-1030') {
+      switch (point.id) {
+        case 'bike-activity':
+          return {
+            ...point,
+            value: edgeLinked
+              ? edgeActivityValue ?? 'Premier resume d activite Edge recu'
+              : point.value,
+            state: edgeLinked ? 'received' : point.state,
+          };
+        case 'trainer-bridge':
+          return {
+            ...point,
+            value: edgeLinked
+              ? edgeTrainerValue ?? 'Le companion mobile reuse deja le meme schema ACK pour le velo'
+              : point.value,
+            state: edgeLinked ? 'received' : point.state,
+          };
+        case 'route-path':
+          return {
+            ...point,
+            value: edgeLinked
+              ? `Dernier lot ${edgeStatus.lastBatchId ?? 'edge'} recu et pret a hydrater`
+              : point.value,
+            state: edgeLinked ? 'received' : point.state,
+          };
+        case 'sensor-map':
+          return {
+            ...point,
+            value:
+              (edgeLinked ? edgeHealthValue : null) ??
+              edgeStatus.lastDiagnostic?.message ??
+              point.value,
+            state: edgeLinked ? 'received' : point.state,
+          };
+        default:
+          return point;
+      }
+    }
+
+    return point;
+  });
+}
+
+function resolveDualCompanionDeviceMetrics(
+  device: Device,
+  controller: CarbonController,
+  syncJobs: SyncJob[],
+  activeCompanionStatus: GarminConnectIqBridgeStatus,
+  fenixStatus: GarminConnectIqBridgeStatus,
+  fenixMetrics: GarminMetricSampleMap,
+  edgeStatus: GarminConnectIqBridgeStatus,
+  edgeMetrics: GarminMetricSampleMap,
+) {
+  if (device.id === 'phone') {
+    return [
+      `${syncJobs.length} jobs`,
+      `CIQ ${formatBridgeHealthLabel(activeCompanionStatus.health)}`,
+      controller.connected ? 'Carbon maitre' : 'Carbon attente',
+    ];
+  }
+
+  if (device.id === 'fenix-7-pro') {
+    const fenixLinked = getCompanionDeviceLinkState(fenixStatus, 'fenix').connected;
+    const heartRate = getGarminMetricNumber(fenixMetrics, 'heart_rate_bpm');
+    const steps = getGarminMetricNumber(fenixMetrics, 'steps');
+    const recoveryHours = getGarminMetricNumber(fenixMetrics, 'time_to_recovery_h');
+    const metricChips = [
+      heartRate !== null ? `FC ${heartRate.toFixed(0)} bpm` : null,
+      steps !== null ? `${steps.toFixed(0)} pas` : null,
+      recoveryHours !== null ? `Recup ${recoveryHours.toFixed(0)} h` : null,
+    ].filter((item): item is string => Boolean(item));
+
+    if (fenixLinked && metricChips.length > 0) {
+      return metricChips;
+    }
+
+    return [
+      fenixStatus.deviceHello?.deviceModel ?? 'fenix en attente',
+      `CIQ ${formatBridgeHealthLabel(fenixStatus.health)}`,
+      fenixLinked && fenixStatus.lastBatchId ? 'Lot recu' : 'Aucune mesure',
+    ];
+  }
+
+  if (device.id === 'edge-1030') {
+    const edgeLinked = getCompanionDeviceLinkState(edgeStatus, 'edge').connected;
+    const edgeElapsedTime = getGarminMetricNumber(edgeMetrics, 'activity_elapsed_time_s');
+    const edgeDistance = getGarminMetricNumber(edgeMetrics, 'activity_elapsed_distance_m');
+    const edgeCadence = getGarminMetricNumber(edgeMetrics, 'activity_current_cadence_rpm');
+    const metricChips = [
+      edgeElapsedTime !== null ? `${edgeElapsedTime.toFixed(0)} s` : null,
+      edgeDistance !== null ? `${edgeDistance.toFixed(0)} m` : null,
+      edgeCadence !== null ? `${edgeCadence.toFixed(0)} rpm` : null,
+    ].filter((item): item is string => Boolean(item));
+
+    if (edgeLinked && metricChips.length > 0) {
+      return metricChips;
+    }
+
+    return [
+      edgeStatus.deviceHello?.deviceModel ?? 'Edge en attente',
+      `CIQ ${formatBridgeHealthLabel(edgeStatus.health)}`,
+      edgeLinked && edgeStatus.lastBatchId ? 'Lot recu' : 'Aucune mesure',
     ];
   }
 
@@ -922,32 +1120,84 @@ export default function App() {
   const [sessions, setSessions] = useState<TimelineSession[]>(initialSessions);
   const [syncJobs, setSyncJobs] = useState<SyncJob[]>(initialSyncJobs);
   const [controller, setController] = useState<CarbonController>(initialController);
-  const [garminBridge] = useState(() => createGarminConnectIqBridge());
-  const [companionStatus, setCompanionStatus] = useState<GarminConnectIqBridgeStatus>(() =>
+  const [activeCompanionKind, setActiveCompanionKind] = useState<CompanionDeviceKind>('fenix');
+  const [fenixBridge] = useState(() =>
+    createGarminConnectIqBridge({
+      appId: GARMIN_CONNECT_IQ_WATCH_APP_ID,
+      preferredDeviceName: 'fenix',
+      preferredDeviceKind: 'fenix',
+    }),
+  );
+  const [edgeBridge] = useState(() =>
+    createGarminConnectIqBridge({
+      appId: GARMIN_CONNECT_IQ_EDGE_APP_ID,
+      preferredDeviceName: 'edge',
+      preferredDeviceKind: 'edge',
+    }),
+  );
+  const [fenixStatus, setFenixStatus] = useState<GarminConnectIqBridgeStatus>(() =>
     createGarminConnectIqBridgeStatus(),
   );
-  const [lastGarminBatch, setLastGarminBatch] = useState<GarminConnectIqBatchEnvelope | null>(
+  const [edgeStatus, setEdgeStatus] = useState<GarminConnectIqBridgeStatus>(() =>
+    createGarminConnectIqBridgeStatus(),
+  );
+  const [lastFenixBatch, setLastFenixBatch] = useState<GarminConnectIqBatchEnvelope | null>(
     null,
   );
-  const [garminMetrics, setGarminMetrics] = useState<GarminMetricSampleMap>({});
+  const [lastEdgeBatch, setLastEdgeBatch] = useState<GarminConnectIqBatchEnvelope | null>(null);
+  const [fenixMetrics, setFenixMetrics] = useState<GarminMetricSampleMap>({});
+  const [edgeMetrics, setEdgeMetrics] = useState<GarminMetricSampleMap>({});
   const [notice, setNotice] = useState(
     'Companion Android local actif. Les valeurs Garmin ne s affichent qu apres reception de mesures reelles.',
   );
-  const companionHighlights = buildCompanionHighlights(companionStatus, garminMetrics);
+  const activeBridge = activeCompanionKind === 'fenix' ? fenixBridge : edgeBridge;
+  const activeCompanionStatus = activeCompanionKind === 'fenix' ? fenixStatus : edgeStatus;
+  const activeGarminMetrics = activeCompanionKind === 'fenix' ? fenixMetrics : edgeMetrics;
+  const activeGarminBatch = activeCompanionKind === 'fenix' ? lastFenixBatch : lastEdgeBatch;
+  const companionHighlights = buildCompanionHighlights(activeCompanionStatus, activeGarminMetrics);
 
   useEffect(() => {
     let active = true;
-
-    void garminBridge.getStatus().then((status) => {
-      if (active) {
-        setCompanionStatus(status);
+    const applyBridgeStatus = (
+      kind: CompanionDeviceKind,
+      status: GarminConnectIqBridgeStatus,
+    ) => {
+      if (kind === 'fenix') {
+        setFenixStatus(status);
+      } else {
+        setEdgeStatus(status);
       }
-    });
 
-    void garminBridge.connect({
+      if (!status.lastBatch) {
+        return;
+      }
+
+      const restoredBatch = status.lastBatch;
+
+      if (kind === 'fenix') {
+        setLastFenixBatch((currentBatch) =>
+          currentBatch?.batchId === restoredBatch.batchId ? currentBatch : restoredBatch,
+        );
+        setFenixMetrics((currentMetrics) => ({
+          ...currentMetrics,
+          ...extractGarminSamples(restoredBatch),
+        }));
+        return;
+      }
+
+      setLastEdgeBatch((currentBatch) =>
+        currentBatch?.batchId === restoredBatch.batchId ? currentBatch : restoredBatch,
+      );
+      setEdgeMetrics((currentMetrics) => ({
+        ...currentMetrics,
+        ...extractGarminSamples(restoredBatch),
+      }));
+    };
+
+    void activeBridge.connect({
       onStatusChanged: (status) => {
         if (active) {
-          setCompanionStatus(status);
+          applyBridgeStatus(activeCompanionKind, status);
         }
       },
       onBatchReceived: (batch) => {
@@ -955,14 +1205,22 @@ export default function App() {
           return;
         }
 
-        setLastGarminBatch(batch);
-        setGarminMetrics((currentMetrics) => ({
-          ...currentMetrics,
-          ...extractGarminSamples(batch),
-        }));
-        setNotice(`Lot Connect IQ ${batch.batchId} recu depuis la fenix 7 Pro.`);
-        void garminBridge.acknowledgeBatch(
-          createGarminConnectIqBatchAck(batch.batchId, batch.lastSampleId),
+        if (activeCompanionKind === 'fenix') {
+          setLastFenixBatch(batch);
+          setFenixMetrics((currentMetrics) => ({
+            ...currentMetrics,
+            ...extractGarminSamples(batch),
+          }));
+        } else {
+          setLastEdgeBatch(batch);
+          setEdgeMetrics((currentMetrics) => ({
+            ...currentMetrics,
+            ...extractGarminSamples(batch),
+          }));
+        }
+
+        setNotice(
+          `Lot Connect IQ ${batch.batchId} recu depuis ${getCompanionKindLabel(activeCompanionKind)}.`,
         );
       },
       onDiagnostic: (diagnostic) => {
@@ -974,50 +1232,33 @@ export default function App() {
 
     return () => {
       active = false;
-      void garminBridge.disconnect();
+      void activeBridge.disconnect();
     };
-  }, [garminBridge]);
+  }, [activeBridge, activeCompanionKind]);
 
   useEffect(() => {
     const bridgeNow = formatNow();
-    const fenixConnected = isBridgeDeviceConnected(companionStatus, 'fenix');
-    const fenixKnown = isBridgeLinkedToDeviceKind(companionStatus, 'fenix');
-    const edgeConnected = isBridgeDeviceConnected(companionStatus, 'edge');
-    const edgeKnown = isBridgeLinkedToDeviceKind(companionStatus, 'edge');
 
     setDevices((currentDevices) =>
       currentDevices.map((device) => {
         if (device.id === 'fenix-7-pro') {
           return {
             ...device,
-            status: fenixConnected ? 'connected' : fenixKnown ? 'attention' : 'ready',
-            lastSeen: fenixConnected ? bridgeNow : fenixKnown ? 'Connexion a confirmer' : 'Jamais',
-            note: fenixConnected
-              ? 'Montre principale reliee a l app. Les mesures affichent uniquement des lots Connect IQ reels.'
-              : companionStatus.lastDiagnostic?.message ??
-                (fenixKnown
-                  ? 'La fenix est connue du companion, mais la liaison n est pas encore confirmee.'
-                  : 'Montre en attente d une detection Connect IQ reelle.'),
+            ...resolveCompanionDevicePresentation(fenixStatus, 'fenix', bridgeNow),
           };
         }
 
         if (device.id === 'edge-1030') {
           return {
             ...device,
-            status: edgeConnected ? 'connected' : edgeKnown ? 'attention' : 'ready',
-            lastSeen: edgeConnected ? bridgeNow : edgeKnown ? 'Connexion a confirmer' : 'Jamais',
-            note: edgeConnected
-              ? 'Bridge Connect IQ actif. Le chemin Edge -> mobile est confirme.'
-              : edgeKnown
-                ? 'Le Edge repond au companion, mais la liaison mobile n est pas encore confirmee.'
-                : 'Aucune connexion Edge reelle detectee. Le compteur reste hors ligne tant qu il est eteint ou non joint.',
+            ...resolveCompanionDevicePresentation(edgeStatus, 'edge', bridgeNow),
           };
         }
 
         return device;
       }),
     );
-  }, [companionStatus]);
+  }, [edgeStatus, fenixStatus]);
 
   const diagnostics = buildDiagnostics(devices, controller, syncJobs);
   const connectedDevices = devices.filter((device) => device.status === 'connected').length;
@@ -1035,7 +1276,7 @@ export default function App() {
   };
 
   const requestGarminSync = (message: string) => {
-    void garminBridge.requestSyncNow();
+    void activeBridge.requestSyncNow();
     setNotice(message);
   };
 
@@ -1058,6 +1299,8 @@ export default function App() {
   };
 
   const connectFenix = () => {
+    const switchingBridge = activeCompanionKind !== 'fenix';
+    setActiveCompanionKind('fenix');
     prependSyncJob(
       buildSyncJob(
         'Verification fenix 7 Pro',
@@ -1065,12 +1308,19 @@ export default function App() {
         'La fenix ne sera marquee connectee qu apres confirmation reelle du bridge Connect IQ.',
       ),
     );
+    if (switchingBridge) {
+      setNotice('Bridge fenix active. La prochaine sync Connect IQ ciblera la montre.');
+      return;
+    }
+
     requestGarminSync(
       'Verification de la fenix demandee. Le statut Connecte apparaitra uniquement apres une liaison reelle.',
     );
   };
 
   const connectEdge = () => {
+    const switchingBridge = activeCompanionKind !== 'edge';
+    setActiveCompanionKind('edge');
     updateDevice('edge-1030', (device) => ({
       ...device,
       status: device.status === 'connected' ? 'connected' : 'ready',
@@ -1085,9 +1335,34 @@ export default function App() {
         'Aucune connexion Edge n est consideree active tant qu un bridge reel ne l a pas confirmee.',
       ),
     );
-    setNotice(
+    if (switchingBridge) {
+      setNotice('Bridge Edge active. La prochaine sync Connect IQ ciblera le compteur.');
+      return;
+    }
+
+    requestGarminSync(
       'Verification Edge 1030 demandee. Le statut Connecte ne sera affiche qu apres une liaison reelle.',
     );
+  };
+
+  const syncFenixNow = () => {
+    if (activeCompanionKind !== 'fenix') {
+      setActiveCompanionKind('fenix');
+      setNotice('Bridge fenix active. Lance la sync une fois la montre selectionnee.');
+      return;
+    }
+
+    requestGarminSync('Un nouveau lot Connect IQ vient d etre demande a la fenix.');
+  };
+
+  const syncEdgeNow = () => {
+    if (activeCompanionKind !== 'edge') {
+      setActiveCompanionKind('edge');
+      setNotice('Bridge Edge active. Lance la sync une fois le compteur selectionne.');
+      return;
+    }
+
+    requestGarminSync('Un lot Connect IQ edge-compatible vient d etre demande.');
   };
 
   const activateCarbonControl = () => {
@@ -1232,15 +1507,18 @@ export default function App() {
             <Text style={styles.panelEyebrow}>Companion mobile</Text>
             <Text style={styles.panelTitle}>Connect IQ Bridge</Text>
           </View>
-          <View style={[styles.badgeBase, getBridgeTone(companionStatus.health)]}>
-            <Text style={styles.badgeText}>{formatBridgeHealthLabel(companionStatus.health)}</Text>
+          <View style={[styles.badgeBase, getBridgeTone(activeCompanionStatus.health)]}>
+            <Text style={styles.badgeText}>{formatBridgeHealthLabel(activeCompanionStatus.health)}</Text>
           </View>
         </View>
 
         <View style={styles.metaGrid}>
+          <Text style={styles.metaLabel}>Bridge actif</Text>
+          <Text style={styles.metaValue}>{getCompanionKindLabel(activeCompanionKind)}</Text>
           <Text style={styles.metaLabel}>Appareil</Text>
           <Text style={styles.metaValue}>
-            {companionStatus.deviceHello?.deviceModel ?? 'fenix en attente'}
+            {activeCompanionStatus.deviceHello?.deviceModel ??
+              `${getCompanionKindLabel(activeCompanionKind)} en attente`}
           </Text>
           <Text style={styles.metaLabel}>Protocole</Text>
           <Text style={styles.metaValue}>
@@ -1248,10 +1526,10 @@ export default function App() {
           </Text>
           <Text style={styles.metaLabel}>Dernier lot</Text>
           <Text style={styles.metaValue}>
-            {lastGarminBatch?.batchId ?? companionStatus.lastBatchId ?? 'Aucun lot'}
+            {activeGarminBatch?.batchId ?? activeCompanionStatus.lastBatchId ?? 'Aucun lot'}
           </Text>
           <Text style={styles.metaLabel}>Tampon</Text>
-          <Text style={styles.metaValue}>{companionStatus.pendingBatchCount} lot(s) en attente</Text>
+          <Text style={styles.metaValue}>{activeCompanionStatus.pendingBatchCount} lot(s) en attente</Text>
         </View>
 
         <View style={styles.chipRow}>
@@ -1263,19 +1541,19 @@ export default function App() {
         </View>
 
         <Text style={styles.deviceNote}>
-          {companionStatus.lastDiagnostic
-            ? companionStatus.lastDiagnostic.message
-            : isBridgeReallyConnected(companionStatus) && companionStatus.lastBatchId
+          {activeCompanionStatus.lastDiagnostic
+            ? activeCompanionStatus.lastDiagnostic.message
+            : isBridgeReallyConnected(activeCompanionStatus) && activeCompanionStatus.lastBatchId
               ? 'Le companion recoit des lots Connect IQ reels et les acquitte automatiquement.'
-              : 'Le companion attend encore un premier lot reel provenant de la montre.'}
+              : `Le companion attend encore un premier lot reel provenant de ${getCompanionKindLabel(activeCompanionKind)}.`}
         </Text>
 
         <View style={styles.inlineActions}>
+          <ActionButton label="Bridge fenix" onPress={connectFenix} />
+          <ActionButton label="Bridge Edge" onPress={connectEdge} />
           <ActionButton
             label="Sync Connect IQ"
-            onPress={() =>
-              requestGarminSync('Un nouveau lot Connect IQ vient d etre demande a la fenix.')
-            }
+            onPress={activeCompanionKind === 'edge' ? syncEdgeNow : syncFenixNow}
             variant="primary"
           />
           <ActionButton label="Voir appareils" onPress={() => setTab('devices')} />
@@ -1341,19 +1619,25 @@ export default function App() {
         const isCarbon = device.id === 'carbon-tls';
         const isEdge = device.id === 'edge-1030';
         const isFenix = device.id === 'fenix-7-pro';
-        const resolvedDataPoints = resolveCompanionDeviceDataPoints(
+        const resolvedDataPoints = resolveDualCompanionDeviceDataPoints(
           device,
           controller,
           syncJobs,
-          companionStatus,
-          garminMetrics,
+          activeCompanionStatus,
+          fenixStatus,
+          fenixMetrics,
+          edgeStatus,
+          edgeMetrics,
         );
-        const resolvedMetrics = resolveCompanionDeviceMetrics(
+        const resolvedMetrics = resolveDualCompanionDeviceMetrics(
           device,
           controller,
           syncJobs,
-          companionStatus,
-          garminMetrics,
+          activeCompanionStatus,
+          fenixStatus,
+          fenixMetrics,
+          edgeStatus,
+          edgeMetrics,
         );
 
         return (
@@ -1432,9 +1716,7 @@ export default function App() {
                   />
                   <ActionButton
                     label="Sync CIQ"
-                    onPress={() =>
-                      requestGarminSync('Un lot Connect IQ edge-compatible vient d etre demande.')
-                    }
+                    onPress={syncEdgeNow}
                   />
                 </>
               ) : isFenix ? (
@@ -1446,9 +1728,7 @@ export default function App() {
                   />
                   <ActionButton
                     label="Sync CIQ"
-                    onPress={() =>
-                      requestGarminSync('Un nouveau lot Connect IQ vient d etre demande a la fenix.')
-                    }
+                    onPress={syncFenixNow}
                   />
                 </>
               ) : (
@@ -1516,17 +1796,18 @@ export default function App() {
           <View style={styles.deviceTitleBlock}>
             <Text style={styles.deviceTitle}>Companion Connect IQ</Text>
             <Text style={styles.deviceSubtitle}>
-              {companionStatus.deviceHello?.deviceModel ?? 'fenix en attente'}
+              {activeCompanionStatus.deviceHello?.deviceModel ??
+                `${getCompanionKindLabel(activeCompanionKind)} en attente`}
             </Text>
           </View>
-          <View style={[styles.badgeBase, getBridgeTone(companionStatus.health)]}>
-            <Text style={styles.badgeText}>{formatBridgeHealthLabel(companionStatus.health)}</Text>
+          <View style={[styles.badgeBase, getBridgeTone(activeCompanionStatus.health)]}>
+            <Text style={styles.badgeText}>{formatBridgeHealthLabel(activeCompanionStatus.health)}</Text>
           </View>
         </View>
         <Text style={styles.deviceNote}>
-          {companionStatus.lastDiagnostic
-            ? `${companionStatus.lastDiagnostic.code} · ${companionStatus.lastDiagnostic.message}`
-            : `Dernier lot ${lastGarminBatch?.batchId ?? companionStatus.lastBatchId ?? 'aucun'} · ${companionStatus.pendingBatchCount} lot(s) en attente.`}
+          {activeCompanionStatus.lastDiagnostic
+            ? `${activeCompanionStatus.lastDiagnostic.code} · ${activeCompanionStatus.lastDiagnostic.message}`
+            : `Dernier lot ${activeGarminBatch?.batchId ?? activeCompanionStatus.lastBatchId ?? 'aucun'} · ${activeCompanionStatus.pendingBatchCount} lot(s) en attente.`}
         </Text>
       </View>
 
@@ -1556,55 +1837,51 @@ export default function App() {
     </View>
   );
 
-  if (!loggedIn) {
-    return (
-      <SafeAreaView style={styles.safeArea}>
-        <StatusBar style="dark" />
-        <View style={styles.orbTop} />
-        <View style={styles.orbBottom} />
+  const screenContent = !loggedIn ? (
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar style="dark" />
+      <View style={styles.orbTop} />
+      <View style={styles.orbBottom} />
 
-        <ScrollView contentContainerStyle={styles.authScroll}>
-          <Text style={styles.authEyebrow}>nouvelleApp mobile</Text>
-          <Text style={styles.authTitle}>Connecte le mobile, Garmin et ton Carbon TLS sans iFIT maitre</Text>
-          <Text style={styles.authBody}>
-            Ce prototype Android valide le parcours de connexion local et le pilotage direct du tapis.
+      <ScrollView contentContainerStyle={styles.authScroll}>
+        <Text style={styles.authEyebrow}>nouvelleApp mobile</Text>
+        <Text style={styles.authTitle}>Connecte le mobile, Garmin et ton Carbon TLS sans iFIT maitre</Text>
+        <Text style={styles.authBody}>
+          Ce prototype Android valide le parcours de connexion local et le pilotage direct du tapis.
+        </Text>
+
+        <View style={styles.authCard}>
+          <Text style={styles.inputLabel}>Email</Text>
+          <TextInput
+            autoCapitalize="none"
+            keyboardType="email-address"
+            onChangeText={setEmail}
+            placeholder="nom@domaine.com"
+            placeholderTextColor={palette.inkMuted}
+            style={styles.input}
+            value={email}
+          />
+
+          <Text style={styles.inputLabel}>Mot de passe</Text>
+          <TextInput
+            onChangeText={setPassword}
+            placeholder="minimum 4 caracteres"
+            placeholderTextColor={palette.inkMuted}
+            secureTextEntry
+            style={styles.input}
+            value={password}
+          />
+
+          {loginError ? <Text style={styles.errorText}>{loginError}</Text> : null}
+
+          <ActionButton label="Se connecter" onPress={handleLogin} variant="primary" />
+          <Text style={styles.authHint}>
+            Les donnees Garmin ne seront affichees qu apres reception d un lot reel depuis la montre.
           </Text>
-
-          <View style={styles.authCard}>
-            <Text style={styles.inputLabel}>Email</Text>
-            <TextInput
-              autoCapitalize="none"
-              keyboardType="email-address"
-              onChangeText={setEmail}
-              placeholder="nom@domaine.com"
-              placeholderTextColor={palette.inkMuted}
-              style={styles.input}
-              value={email}
-            />
-
-            <Text style={styles.inputLabel}>Mot de passe</Text>
-            <TextInput
-              onChangeText={setPassword}
-              placeholder="minimum 4 caracteres"
-              placeholderTextColor={palette.inkMuted}
-              secureTextEntry
-              style={styles.input}
-              value={password}
-            />
-
-            {loginError ? <Text style={styles.errorText}>{loginError}</Text> : null}
-
-            <ActionButton label="Se connecter" onPress={handleLogin} variant="primary" />
-            <Text style={styles.authHint}>
-              Les donnees Garmin ne seront affichees qu apres reception d un lot reel depuis la montre.
-            </Text>
-          </View>
-        </ScrollView>
-      </SafeAreaView>
-    );
-  }
-
-  return (
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  ) : (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="dark" />
       <View style={styles.orbTop} />
@@ -1664,6 +1941,8 @@ export default function App() {
       </ScrollView>
     </SafeAreaView>
   );
+
+  return <SafeAreaProvider>{screenContent}</SafeAreaProvider>;
 }
 
 const styles = StyleSheet.create({

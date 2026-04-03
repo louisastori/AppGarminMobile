@@ -24,7 +24,7 @@ jobs:
   workspace-checks:
     name: Workspace Checks
     runs-on: windows-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
 
     steps:
       - name: Checkout repository
@@ -42,14 +42,15 @@ jobs:
       - name: Install dependencies
         run: corepack pnpm install --frozen-lockfile
 
-      - name: Typecheck shared package
-        run: corepack pnpm --filter @nouvelle-app/shared typecheck
+      - name: Typecheck workspace
+        run: corepack pnpm typecheck
 
-      - name: Typecheck mobile app
-        run: corepack pnpm --filter @nouvelle-app/mobile typecheck
+      - name: Run tests with coverage
+        run: corepack pnpm test:coverage
 
-      - name: Validate fenix Connect IQ skeleton
-        run: pwsh -NoProfile -File .\watch-apps\fenix-connect-iq\scripts\validate-structure.ps1
-
-      - name: Validate edge Connect IQ skeleton
-        run: pwsh -NoProfile -File .\watch-apps\edge-connect-iq\scripts\validate-structure.ps1
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nouvelle-app-coverage
+          path: coverage/
+          if-no-files-found: error

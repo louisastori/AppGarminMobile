@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<iq:manifest xmlns:iq="http://www.garmin.com/xml/connectiq" version="4">
+  <iq:application
+    id="1cbb5133-7f4d-4e79-a6e5-4b3f8b7de7d1"
+    entry="NouvelleEdgeApp"
+    launcherIcon="@Drawables.LauncherIcon"
+    name="@Strings.AppName"
+    type="watch-app"
+    minApiLevel="3.2.0">
+    <iq:products>
+      <iq:product id="edge1030" />
+    </iq:products>
+    <iq:permissions>
+      <iq:uses-permission id="Background" />
+      <iq:uses-permission id="Communications" />
+      <iq:uses-permission id="UserProfile" />
+      <iq:uses-permission id="PersistedContent" />
+      <iq:uses-permission id="Sensor" />
+      <iq:uses-permission id="SensorHistory" />
+      <iq:uses-permission id="Fit" />
+    </iq:permissions>
+    <iq:languages>
+      <iq:language>eng</iq:language>
+      <iq:language>fra</iq:language>
+    </iq:languages>
+  </iq:application>
+</iq:manifest>

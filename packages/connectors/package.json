@@ -5,8 +5,13 @@
   "main": "src/index.ts",
   "types": "src/index.ts",
   "scripts": {
-    "build": "echo \"Add connectors build command\"",
-    "typecheck": "echo \"Add connectors typecheck command\"",
-    "lint": "echo \"Add connectors lint command\""
+    "build": "tsc --project tsconfig.json --noEmit",
+    "typecheck": "tsc --project tsconfig.json --noEmit",
+    "lint": "tsc --project tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@nouvelle-app/domain": "workspace:*",
+    "@nouvelle-app/shared": "workspace:*",
+    "fit-file-parser": "^1.21.0"
   }
 }

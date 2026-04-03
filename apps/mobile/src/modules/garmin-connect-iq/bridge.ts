@@ -8,6 +8,14 @@ import type {
   GarminConnectIqSyncDiagnostic,
 } from "./types";
 
+export interface GarminConnectIqBridgeConfig {
+  appId: string;
+  preferredDeviceName?: string;
+  preferredDeviceKind?: "fenix" | "edge";
+}
+
+export type GarminConnectIqAutoSyncMode = "off" | "idle" | "activity";
+
 export interface GarminConnectIqBridgeStatus {
   health: GarminConnectIqLinkHealth;
   linkStatus: GarminConnectIqLinkStatus | null;
@@ -15,7 +23,12 @@ export interface GarminConnectIqBridgeStatus {
   capabilities: GarminConnectIqDeviceCapabilities | null;
   lastBatchId: string | null;
   pendingBatchCount: number;
+  lastBatch: GarminConnectIqBatchEnvelope | null;
   lastDiagnostic: GarminConnectIqSyncDiagnostic | null;
+  autoSyncMode: GarminConnectIqAutoSyncMode;
+  autoSyncIntervalMs: number | null;
+  autoSyncNextAt: string | null;
+  activityActive: boolean;
 }
 
 export function createGarminConnectIqBridgeStatus(): GarminConnectIqBridgeStatus {
@@ -26,7 +39,12 @@ export function createGarminConnectIqBridgeStatus(): GarminConnectIqBridgeStatus
     capabilities: null,
     lastBatchId: null,
     pendingBatchCount: 0,
+    lastBatch: null,
     lastDiagnostic: null,
+    autoSyncMode: "off",
+    autoSyncIntervalMs: null,
+    autoSyncNextAt: null,
+    activityActive: false,
   };
 }
 

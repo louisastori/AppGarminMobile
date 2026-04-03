@@ -334,6 +334,13 @@ export interface GarminConnectIqDeviceCapabilities {
   readonly maxBufferedSamples: number;
 }
 
+export interface GarminConnectIqSyncRequest {
+  readonly messageType: "sync_request";
+  readonly requestedAt: string;
+  readonly requestId: string | null;
+  readonly reason: string | null;
+}
+
 export interface GarminConnectIqLinkStatus {
   readonly messageType: "link_status";
   readonly recordedAt: string;
@@ -398,16 +405,23 @@ export interface GarminConnectIqSyncDiagnostic {
   readonly batchId: string | null;
 }
 
-export type GarminConnectIqMessage =
+export type GarminConnectIqWatchToPhoneMessage =
   | GarminConnectIqDeviceHello
   | GarminConnectIqDeviceCapabilities
   | GarminConnectIqLinkStatus
   | GarminConnectIqMetricSample
   | GarminConnectIqSnapshot
   | GarminConnectIqBatchEnvelope
-  | GarminConnectIqBatchAck
   | GarminConnectIqWatchError
   | GarminConnectIqSyncDiagnostic;
+
+export type GarminConnectIqPhoneToWatchMessage =
+  | GarminConnectIqBatchAck
+  | GarminConnectIqSyncRequest;
+
+export type GarminConnectIqMessage =
+  | GarminConnectIqWatchToPhoneMessage
+  | GarminConnectIqPhoneToWatchMessage;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -426,6 +440,15 @@ export function isGarminConnectIqMetricKey(
   );
 }
 
+export function isGarminConnectIqDeviceKind(
+  value: unknown,
+): value is GarminConnectIqDeviceKind {
+  return (
+    typeof value === "string" &&
+    GARMIN_CONNECT_IQ_DEVICE_KINDS.includes(value as GarminConnectIqDeviceKind)
+  );
+}
+
 export function isGarminConnectIqSourceDomain(
   value: unknown,
 ): value is GarminConnectIqSourceDomain {
@@ -437,6 +460,15 @@ export function isGarminConnectIqSourceDomain(
   );
 }
 
+export function isGarminConnectIqLinkHealth(
+  value: unknown,
+): value is GarminConnectIqLinkHealth {
+  return (
+    typeof value === "string" &&
+    GARMIN_CONNECT_IQ_LINK_HEALTHS.includes(value as GarminConnectIqLinkHealth)
+  );
+}
+
 export function isGarminConnectIqSampleQuality(
   value: unknown,
 ): value is GarminConnectIqSampleQuality {
@@ -445,6 +477,61 @@ export function isGarminConnectIqSampleQuality(
     GARMIN_CONNECT_IQ_SAMPLE_QUALITIES.includes(
       value as GarminConnectIqSampleQuality,
     )
+  );
+}
+
+export function isGarminConnectIqSyncDiagnosticCode(
+  value: unknown,
+): value is GarminConnectIqSyncDiagnosticCode {
+  return (
+    typeof value === "string" &&
+    GARMIN_CONNECT_IQ_SYNC_DIAGNOSTIC_CODES.includes(
+      value as GarminConnectIqSyncDiagnosticCode,
+    )
+  );
+}
+
+export function isGarminConnectIqWatchErrorCode(
+  value: unknown,
+): value is GarminConnectIqWatchErrorCode {
+  return (
+    isGarminConnectIqSyncDiagnosticCode(value) ||
+    value === "unsupported_metric" ||
+    value === "invalid_payload"
+  );
+}
+
+export function isGarminConnectIqDeviceHello(
+  value: unknown,
+): value is GarminConnectIqDeviceHello {
+  if (!isRecord(value) || value.messageType !== "device_hello") {
+    return false;
+  }
+
+  return (
+    typeof value.deviceId === "string" &&
+    isGarminConnectIqDeviceKind(value.deviceKind) &&
+    typeof value.deviceModel === "string" &&
+    typeof value.firmwareVersion === "string" &&
+    typeof value.appVersion === "string" &&
+    typeof value.timezoneOffsetMinutes === "number"
+  );
+}
+
+export function isGarminConnectIqLinkStatus(
+  value: unknown,
+): value is GarminConnectIqLinkStatus {
+  if (!isRecord(value) || value.messageType !== "link_status") {
+    return false;
+  }
+
+  return (
+    typeof value.recordedAt === "string" &&
+    isGarminConnectIqLinkHealth(value.health) &&
+    typeof value.pendingBatchCount === "number" &&
+    (value.lastBatchId === null || typeof value.lastBatchId === "string") &&
+    (value.lastErrorCode === null ||
+      isGarminConnectIqSyncDiagnosticCode(value.lastErrorCode))
   );
 }
 
@@ -523,6 +610,20 @@ export function isGarminConnectIqBatchAck(
   );
 }
 
+export function isGarminConnectIqSyncRequest(
+  value: unknown,
+): value is GarminConnectIqSyncRequest {
+  if (!isRecord(value) || value.messageType !== "sync_request") {
+    return false;
+  }
+
+  return (
+    typeof value.requestedAt === "string" &&
+    (value.requestId === null || typeof value.requestId === "string") &&
+    (value.reason === null || typeof value.reason === "string")
+  );
+}
+
 export function isGarminConnectIqDeviceCapabilities(
   value: unknown,
 ): value is GarminConnectIqDeviceCapabilities {
@@ -548,10 +649,22 @@ export function isGarminConnectIqSyncDiagnostic(
   }
 
   return (
-    typeof value.code === "string" &&
-    GARMIN_CONNECT_IQ_SYNC_DIAGNOSTIC_CODES.includes(
-      value.code as GarminConnectIqSyncDiagnosticCode,
-    ) &&
+    isGarminConnectIqSyncDiagnosticCode(value.code) &&
+    typeof value.message === "string" &&
+    typeof value.recordedAt === "string" &&
+    (value.batchId === null || typeof value.batchId === "string")
+  );
+}
+
+export function isGarminConnectIqWatchError(
+  value: unknown,
+): value is GarminConnectIqWatchError {
+  if (!isRecord(value) || value.messageType !== "watch_error") {
+    return false;
+  }
+
+  return (
+    isGarminConnectIqWatchErrorCode(value.code) &&
     typeof value.message === "string" &&
     typeof value.recordedAt === "string" &&
     (value.batchId === null || typeof value.batchId === "string")
@@ -568,5 +681,18 @@ export function createGarminConnectIqBatchAck(
     batchId,
     acknowledgedAt,
     lastSampleId,
+  };
+}
+
+export function createGarminConnectIqSyncRequest(
+  reason: string | null = null,
+  requestId: string | null = null,
+  requestedAt: string = new Date().toISOString(),
+): GarminConnectIqSyncRequest {
+  return {
+    messageType: "sync_request",
+    requestedAt,
+    requestId,
+    reason,
   };
 }

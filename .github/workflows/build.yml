@@ -20,10 +20,10 @@ env:
   npm_config_virtual_store_dir: .pnpm-store-ci
 
 jobs:
-  mobile-export:
-    name: Mobile Export
+  workspace-build:
+    name: Workspace Build
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
 
     steps:
       - name: Checkout repository
@@ -41,8 +41,8 @@ jobs:
       - name: Install dependencies
         run: corepack pnpm install --frozen-lockfile
 
-      - name: Build Expo export
-        run: corepack pnpm --filter @nouvelle-app/mobile build
+      - name: Build workspace
+        run: corepack pnpm build
 
       - name: Upload mobile export artifact
         uses: actions/upload-artifact@v4
@@ -51,20 +51,19 @@ jobs:
           path: apps/mobile/dist/
           if-no-files-found: error
 
-  connect-iq-build:
-    name: Connect IQ Build
-    runs-on: windows-latest
-    timeout-minutes: 20
+      - name: Upload API build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nouvelle-app-api-build
+          path: apps/api/dist/
+          if-no-files-found: error
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Build fenix Connect IQ app
-        run: pwsh -NoProfile -File .\watch-apps\fenix-connect-iq\scripts\build.ps1
-
-      - name: Build edge Connect IQ app
-        run: pwsh -NoProfile -File .\watch-apps\edge-connect-iq\scripts\build.ps1
+      - name: Upload web build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nouvelle-app-web-build
+          path: apps/web/dist/
+          if-no-files-found: error
 
       - name: Upload fenix Connect IQ artifact
         if: ${{ hashFiles('watch-apps/fenix-connect-iq/bin/*.prg') != '' }}

@@ -4,16 +4,20 @@ import {
   createGarminConnectIqBatchAck,
   isGarminConnectIqBatchEnvelope,
   isGarminConnectIqDeviceCapabilities,
+  isGarminConnectIqDeviceHello,
+  isGarminConnectIqLinkHealth,
+  isGarminConnectIqLinkStatus,
   isGarminConnectIqSyncDiagnostic,
 } from './contract';
 import {
   GARMIN_CONNECT_IQ_NATIVE_EVENTS,
-  GARMIN_CONNECT_IQ_WATCH_APP_ID,
   garminConnectIqNativeEventEmitter,
   garminConnectIqNativeModule,
 } from './native';
 import type {
+  GarminConnectIqAutoSyncMode,
   GarminConnectIqBridge,
+  GarminConnectIqBridgeConfig,
   GarminConnectIqBridgeListener,
   GarminConnectIqBridgeStatus,
 } from './bridge';
@@ -29,6 +33,7 @@ import type {
 type NativeStatusPayload = Partial<GarminConnectIqBridgeStatus> & {
   deviceHello?: GarminConnectIqDeviceHello | null;
   capabilities?: GarminConnectIqDeviceCapabilities | null;
+  lastBatchJson?: string | null;
   lastDiagnostic?: GarminConnectIqSyncDiagnostic | null;
 };
 
@@ -36,10 +41,19 @@ function isStatusPayload(value: unknown): value is NativeStatusPayload {
   return typeof value === 'object' && value !== null;
 }
 
+function isAutoSyncMode(value: unknown): value is GarminConnectIqAutoSyncMode {
+  return value === 'off' || value === 'idle' || value === 'activity';
+}
+
 export class RealGarminConnectIqBridge implements GarminConnectIqBridge {
+  private readonly config: GarminConnectIqBridgeConfig;
   private status: GarminConnectIqBridgeStatus = createGarminConnectIqBridgeStatus();
   private listener?: GarminConnectIqBridgeListener;
   private subscriptions: EmitterSubscription[] = [];
+
+  constructor(config: GarminConnectIqBridgeConfig) {
+    this.config = config;
+  }
 
   async getStatus(): Promise<GarminConnectIqBridgeStatus> {
     if (!garminConnectIqNativeModule) {
@@ -62,9 +76,9 @@ export class RealGarminConnectIqBridge implements GarminConnectIqBridge {
     this.attachSubscriptions();
     console.log('[GarminConnectIqBridge] initialize start');
     const payload = await garminConnectIqNativeModule.initialize({
-      appId: GARMIN_CONNECT_IQ_WATCH_APP_ID,
-      preferredDeviceName: 'fenix',
-      preferredDeviceKind: 'fenix',
+      appId: this.config.appId,
+      preferredDeviceName: this.config.preferredDeviceName,
+      preferredDeviceKind: this.config.preferredDeviceKind,
     });
 
     this.status = this.mergeStatusPayload(payload);
@@ -125,6 +139,11 @@ export class RealGarminConnectIqBridge implements GarminConnectIqBridge {
           try {
             const parsed = JSON.parse(payload.batchJson) as unknown;
             if (isGarminConnectIqBatchEnvelope(parsed)) {
+              this.status = {
+                ...this.status,
+                lastBatch: parsed,
+                lastBatchId: parsed.batchId,
+              };
               console.log('[GarminConnectIqBridge] batchReceived', parsed.batchId);
               this.listener?.onBatchReceived?.(parsed);
               void this.acknowledgeBatch(
@@ -167,22 +186,70 @@ export class RealGarminConnectIqBridge implements GarminConnectIqBridge {
     }
 
     return {
-      health: payload.health ?? this.status.health,
-      linkStatus: payload.linkStatus ?? this.status.linkStatus,
-      deviceHello: payload.deviceHello ?? this.status.deviceHello,
+      health: isGarminConnectIqLinkHealth(payload.health)
+        ? payload.health
+        : this.status.health,
+      linkStatus:
+        payload.linkStatus === null
+          ? null
+          : payload.linkStatus && isGarminConnectIqLinkStatus(payload.linkStatus)
+            ? payload.linkStatus
+            : this.status.linkStatus,
+      deviceHello:
+        payload.deviceHello === null
+          ? null
+          : payload.deviceHello && isGarminConnectIqDeviceHello(payload.deviceHello)
+            ? payload.deviceHello
+            : this.status.deviceHello,
       capabilities:
-        payload.capabilities && isGarminConnectIqDeviceCapabilities(payload.capabilities)
-          ? payload.capabilities
-          : this.status.capabilities,
+        payload.capabilities === null
+          ? null
+          : payload.capabilities && isGarminConnectIqDeviceCapabilities(payload.capabilities)
+            ? payload.capabilities
+            : this.status.capabilities,
       lastBatchId: payload.lastBatchId ?? this.status.lastBatchId,
       pendingBatchCount:
         typeof payload.pendingBatchCount === 'number'
           ? payload.pendingBatchCount
           : this.status.pendingBatchCount,
+      lastBatch:
+        payload.lastBatchJson === null
+          ? null
+          : typeof payload.lastBatchJson === 'string'
+            ? this.parseStatusBatch(payload.lastBatchJson) ?? this.status.lastBatch
+            : this.status.lastBatch,
       lastDiagnostic:
-        payload.lastDiagnostic && isGarminConnectIqSyncDiagnostic(payload.lastDiagnostic)
-          ? payload.lastDiagnostic
-          : this.status.lastDiagnostic,
+        payload.lastDiagnostic === null
+          ? null
+          : payload.lastDiagnostic && isGarminConnectIqSyncDiagnostic(payload.lastDiagnostic)
+            ? payload.lastDiagnostic
+            : this.status.lastDiagnostic,
+      autoSyncMode: isAutoSyncMode(payload.autoSyncMode)
+        ? payload.autoSyncMode
+        : this.status.autoSyncMode,
+      autoSyncIntervalMs:
+        typeof payload.autoSyncIntervalMs === 'number'
+          ? payload.autoSyncIntervalMs
+          : this.status.autoSyncIntervalMs,
+      autoSyncNextAt:
+        payload.autoSyncNextAt === null
+          ? null
+          : typeof payload.autoSyncNextAt === 'string'
+            ? payload.autoSyncNextAt
+            : this.status.autoSyncNextAt,
+      activityActive:
+        typeof payload.activityActive === 'boolean'
+          ? payload.activityActive
+          : this.status.activityActive,
     };
+  }
+
+  private parseStatusBatch(batchJson: string): GarminConnectIqBatchEnvelope | null {
+    try {
+      const parsed = JSON.parse(batchJson) as unknown;
+      return isGarminConnectIqBatchEnvelope(parsed) ? parsed : null;
+    } catch {
+      return null;
+    }
   }
 }

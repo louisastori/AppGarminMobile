@@ -5,8 +5,11 @@
   "main": "src/index.ts",
   "types": "src/index.ts",
   "scripts": {
-    "build": "echo \"Add domain build command\"",
-    "typecheck": "echo \"Add domain typecheck command\"",
-    "lint": "echo \"Add domain lint command\""
+    "build": "tsc --project tsconfig.json --noEmit",
+    "typecheck": "tsc --project tsconfig.json --noEmit",
+    "lint": "tsc --project tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@nouvelle-app/shared": "workspace:*"
   }
 }

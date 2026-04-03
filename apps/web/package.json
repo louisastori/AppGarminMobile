@@ -2,10 +2,17 @@
   "name": "@nouvelle-app/web",
   "private": true,
   "version": "0.1.0",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
   "scripts": {
-    "dev": "echo \"Add web dev command\"",
-    "build": "echo \"Add web build command\"",
-    "typecheck": "echo \"Add web typecheck command\"",
-    "lint": "echo \"Add web lint command\""
+    "dev": "node --import tsx src/dev.ts",
+    "build": "node --import tsx src/build.ts",
+    "typecheck": "tsc --project tsconfig.json --noEmit",
+    "lint": "tsc --project tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@nouvelle-app/api": "workspace:*",
+    "@nouvelle-app/domain": "workspace:*",
+    "@nouvelle-app/ui": "workspace:*"
   }
 }

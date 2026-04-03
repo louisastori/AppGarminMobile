@@ -1,9 +1,18 @@
+using Toybox.System;
+using Toybox.Time;
+using Toybox.Time.Gregorian;
+
 module GarminContract {
     const PROTOCOL_VERSION = 1;
+    const DEVICE_ID = "fenix7pro-ciq";
     const DEVICE_KIND = "fenix";
     const DEVICE_MODEL = "fenix 7 Pro";
     const APP_VERSION = "0.1.0-alpha";
+    const IDLE_BACKGROUND_SYNC_INTERVAL_SECONDS = 1800;
+    const ACTIVITY_PHONE_SYNC_INTERVAL_SECONDS = 60;
     const SNAPSHOT_DAILY = "daily";
+    const SNAPSHOT_ACTIVITY = "activity";
+    const SNAPSHOT_PROFILE = "profile";
     const QUALITY_LIVE = "live";
     const QUALITY_HISTORY = "history";
     const QUALITY_SNAPSHOT = "snapshot";
@@ -36,6 +45,13 @@ module GarminContract {
         "activity_current_cadence_rpm"
     ];
 
+    const CONDITIONAL_METRICS = [
+        "temperature_c",
+        "pressure_pa",
+        "heading_deg",
+        "power_w"
+    ];
+
     const SNAPSHOT_METRICS = [
         "steps",
         "step_goal",
@@ -59,11 +75,69 @@ module GarminContract {
             supportedMetrics.add(LIVE_METRICS[liveIndex]);
         }
 
+        for (var conditionalIndex = 0; conditionalIndex < CONDITIONAL_METRICS.size(); conditionalIndex += 1) {
+            supportedMetrics.add(CONDITIONAL_METRICS[conditionalIndex]);
+        }
+
         for (var snapshotIndex = 0; snapshotIndex < SNAPSHOT_METRICS.size(); snapshotIndex += 1) {
             supportedMetrics.add(SNAPSHOT_METRICS[snapshotIndex]);
         }
 
         return supportedMetrics;
+    }
+
+    function buildBatchId(sequence) {
+        return buildScopedId("batch", sequence);
+    }
+
+    function buildSnapshotId(snapshotType, sequence) {
+        return buildScopedId(snapshotType, sequence);
+    }
+
+    function buildSampleId(sequence) {
+        return buildScopedId("sample", sequence);
+    }
+
+    function buildUtcTimestamp() {
+        var now = Time.now();
+        var info = Gregorian.utcInfo(now, Time.FORMAT_SHORT);
+
+        return info.year.format("%.0f")
+            + "-" + padTwoDigits(info.month)
+            + "-" + padTwoDigits(info.day)
+            + "T" + padTwoDigits(info.hour)
+            + ":" + padTwoDigits(info.min)
+            + ":" + padTwoDigits(info.sec)
+            + "Z";
+    }
+
+    function getTimezoneOffsetMinutes() {
+        var clock = System.getClockTime();
+        return (clock.timeZoneOffset + clock.dst) / 60;
+    }
+
+    function buildFirmwareVersionString() {
+        var settings = System.getDeviceSettings();
+        var firmwareVersion = settings.firmwareVersion;
+
+        if (firmwareVersion != null && firmwareVersion.size() >= 2) {
+            return firmwareVersion[0].format("%.0f") + "." + padTwoDigits(firmwareVersion[1]);
+        }
+
+        return "firmware-pending";
+    }
+
+    function buildScopedId(scope, sequence) {
+        var nowValue = Time.now().value();
+
+        return DEVICE_ID
+            + "-" + scope
+            + "-" + nowValue.format("%.0f")
+            + "-" + sequence.format("%.0f");
+    }
+
+    function padTwoDigits(value) {
+        return (value < 10 ? "0" : "") + value.format("%.0f");
     }
 }
 

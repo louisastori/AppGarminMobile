@@ -1,5 +1,6 @@
 import type {
   GarminConnectIqBridge,
+  GarminConnectIqBridgeConfig,
   GarminConnectIqBridgeListener,
   GarminConnectIqBridgeStatus,
 } from "./bridge";
@@ -25,10 +26,15 @@ const MOCK_APP_VERSION = "0.1.0-alpha";
 const MOCK_FIRMWARE_VERSION = "18.22";
 
 export class MockGarminConnectIqBridge implements GarminConnectIqBridge {
+  private readonly config: GarminConnectIqBridgeConfig;
   private status: GarminConnectIqBridgeStatus = createGarminConnectIqBridgeStatus();
   private listener?: GarminConnectIqBridgeListener;
   private batchSequence = 0;
   private sampleSequence = 0;
+
+  constructor(config: GarminConnectIqBridgeConfig) {
+    this.config = config;
+  }
 
   async getStatus(): Promise<GarminConnectIqBridgeStatus> {
     return this.status;
@@ -41,6 +47,9 @@ export class MockGarminConnectIqBridge implements GarminConnectIqBridge {
       ...this.status,
       deviceHello: this.buildDeviceHello(),
       capabilities: this.buildCapabilities(),
+      autoSyncMode: "idle",
+      autoSyncIntervalMs: 30 * 60 * 1000,
+      autoSyncNextAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
     };
     this.notifyStatus();
     this.updateStatus("connected");
@@ -52,6 +61,7 @@ export class MockGarminConnectIqBridge implements GarminConnectIqBridge {
       ...createGarminConnectIqBridgeStatus(),
       deviceHello: this.status.deviceHello,
       capabilities: this.status.capabilities,
+      lastBatch: this.status.lastBatch,
     };
     this.notifyStatus();
   }
@@ -61,6 +71,10 @@ export class MockGarminConnectIqBridge implements GarminConnectIqBridge {
       ...this.status,
       lastBatchId: ack.batchId,
       pendingBatchCount: Math.max(0, this.status.pendingBatchCount - 1),
+      autoSyncNextAt:
+        this.status.autoSyncIntervalMs === null
+          ? null
+          : new Date(Date.now() + this.status.autoSyncIntervalMs).toISOString(),
       linkStatus: this.buildLinkStatus(
         this.status.health,
         Math.max(0, this.status.pendingBatchCount - 1),
@@ -117,8 +131,13 @@ export class MockGarminConnectIqBridge implements GarminConnectIqBridge {
     this.status = {
       ...this.status,
       health: "connected",
+      lastBatch: batch,
       lastBatchId: batch.batchId,
       pendingBatchCount,
+      activityActive: true,
+      autoSyncMode: "activity",
+      autoSyncIntervalMs: 60 * 1000,
+      autoSyncNextAt: new Date(Date.now() + 60 * 1000).toISOString(),
       lastDiagnostic: null,
       linkStatus: this.buildLinkStatus("connected", pendingBatchCount, batch.batchId, null),
     };
@@ -127,11 +146,14 @@ export class MockGarminConnectIqBridge implements GarminConnectIqBridge {
   }
 
   private buildDeviceHello(): GarminConnectIqDeviceHello {
+    const deviceKind = this.config.preferredDeviceKind ?? "fenix";
+    const deviceModel = deviceKind === "edge" ? "Edge 1030" : "fenix 7 Pro";
+
     return {
       messageType: "device_hello",
-      deviceId: MOCK_DEVICE_ID,
-      deviceKind: "fenix",
-      deviceModel: "fenix 7 Pro",
+      deviceId: deviceKind === "edge" ? "edge1030-ciq-dev" : MOCK_DEVICE_ID,
+      deviceKind,
+      deviceModel,
       firmwareVersion: MOCK_FIRMWARE_VERSION,
       appVersion: MOCK_APP_VERSION,
       timezoneOffsetMinutes: -new Date().getTimezoneOffset(),
@@ -174,9 +196,11 @@ export class MockGarminConnectIqBridge implements GarminConnectIqBridge {
     const snapshot = this.buildDailySnapshot(createdAt);
     const lastSampleId = snapshot.items[snapshot.items.length - 1]?.sampleId ?? null;
 
+    const devicePrefix = this.config.preferredDeviceKind === "edge" ? "ciq-edge" : "ciq-fenix";
+
     return {
       messageType: "batch_envelope",
-      batchId: `ciq-fenix-${this.batchSequence.toString().padStart(4, "0")}`,
+      batchId: `${devicePrefix}-${this.batchSequence.toString().padStart(4, "0")}`,
       sequence: this.batchSequence,
       createdAt,
       lastSampleId,
@@ -267,6 +291,7 @@ export class MockGarminConnectIqBridge implements GarminConnectIqBridge {
   }
 
   private buildDailySnapshot(recordedAt: string): GarminConnectIqSnapshot {
+    const snapshotPrefix = this.config.preferredDeviceKind === "edge" ? "edge" : "fenix";
     const dailyItems = [
       this.buildMetricSample("steps", 7842 + this.batchSequence * 14, null, "activity_monitor", "snapshot", recordedAt),
       this.buildMetricSample("step_goal", 10000, null, "activity_monitor", "snapshot", recordedAt),
@@ -285,7 +310,7 @@ export class MockGarminConnectIqBridge implements GarminConnectIqBridge {
 
     return {
       messageType: "snapshot",
-      snapshotId: `fenix-daily-${this.batchSequence.toString().padStart(4, "0")}`,
+      snapshotId: `${snapshotPrefix}-daily-${this.batchSequence.toString().padStart(4, "0")}`,
       snapshotType: "daily",
       recordedAt,
       items: dailyItems,
